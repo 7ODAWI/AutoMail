@@ -1,0 +1,60 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoMail.Application", "AutoMail.Application\AutoMail.Application.csproj", "{8E086796-FF7D-123D-8184-026C38DF2F4C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoMail.Core", "AutoMail.Core\AutoMail.Core.csproj", "{BF1836C7-0932-EF2D-0219-0798D8A2BF2B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoMail.EntityFrameworkCore", "AutoMail.EntityFrameworkCore\AutoMail.EntityFrameworkCore.csproj", "{DCC92515-1E70-B4F0-7FB2-2734237B3581}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoMail.Migrator", "AutoMail.Migrator\AutoMail.Migrator.csproj", "{F7436C73-7EB0-81B8-31FE-8F1A28A28AFB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoMail.Web.Core", "AutoMail.Web.Core\AutoMail.Web.Core.csproj", "{0914ABCD-9EC3-35FB-75CE-2D720B23F8BE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoMail.Web.Host", "AutoMail.Web.Host\AutoMail.Web.Host.csproj", "{49222415-8194-ADF2-FAC6-82DCBCA1F259}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoMail.Web.Mvc", "AutoMail.Web.Mvc\AutoMail.Web.Mvc.csproj", "{B6DD3414-7A47-EF9F-262B-2C0C5BBA0EBF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8E086796-FF7D-123D-8184-026C38DF2F4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E086796-FF7D-123D-8184-026C38DF2F4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E086796-FF7D-123D-8184-026C38DF2F4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E086796-FF7D-123D-8184-026C38DF2F4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF1836C7-0932-EF2D-0219-0798D8A2BF2B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF1836C7-0932-EF2D-0219-0798D8A2BF2B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF1836C7-0932-EF2D-0219-0798D8A2BF2B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF1836C7-0932-EF2D-0219-0798D8A2BF2B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DCC92515-1E70-B4F0-7FB2-2734237B3581}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCC92515-1E70-B4F0-7FB2-2734237B3581}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DCC92515-1E70-B4F0-7FB2-2734237B3581}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DCC92515-1E70-B4F0-7FB2-2734237B3581}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F7436C73-7EB0-81B8-31FE-8F1A28A28AFB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7436C73-7EB0-81B8-31FE-8F1A28A28AFB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F7436C73-7EB0-81B8-31FE-8F1A28A28AFB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F7436C73-7EB0-81B8-31FE-8F1A28A28AFB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0914ABCD-9EC3-35FB-75CE-2D720B23F8BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0914ABCD-9EC3-35FB-75CE-2D720B23F8BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0914ABCD-9EC3-35FB-75CE-2D720B23F8BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0914ABCD-9EC3-35FB-75CE-2D720B23F8BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49222415-8194-ADF2-FAC6-82DCBCA1F259}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49222415-8194-ADF2-FAC6-82DCBCA1F259}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49222415-8194-ADF2-FAC6-82DCBCA1F259}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49222415-8194-ADF2-FAC6-82DCBCA1F259}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6DD3414-7A47-EF9F-262B-2C0C5BBA0EBF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6DD3414-7A47-EF9F-262B-2C0C5BBA0EBF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6DD3414-7A47-EF9F-262B-2C0C5BBA0EBF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6DD3414-7A47-EF9F-262B-2C0C5BBA0EBF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A5E3D38D-0BE2-44F6-8FFB-91B36B04BD3D}
+	EndGlobalSection
+EndGlobal

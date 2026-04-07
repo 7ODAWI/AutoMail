@@ -1,0 +1,518 @@
+@{
+    ViewBag.Title = "Bulk Email Sender";
+}
+
+@section styles {
+    <style>
+        /* Upload drop zone */
+        .drop-zone {
+            border: 2px dashed #1a7be4;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background .25s, border-color .25s;
+            background: #f8fbff;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            background: #e8f3ff;
+            border-color: #0d5bbf;
+        }
+        .drop-zone .dz-icon { font-size: 3rem; color: #1a7be4; }
+        .drop-zone .dz-label { font-size: 1rem; color: #555; margin-top: 8px; }
+        .drop-zone .dz-hint  { font-size: .85rem; color: #999; margin-top: 4px; }
+
+        /* Stats card */
+        #upload-stats { display: none; }
+        .stat-badge {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: block;
+        }
+
+        /* Send button pulse when ready */
+        #btn-send.pulse {
+            animation: pulse 1.5s infinite;
+        }
+        @@keyframes pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(40,167,69,.6); }
+            70%  { box-shadow: 0 0 0 10px rgba(40,167,69,0); }
+            100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); }
+        }
+
+        /* Loading spinner overlay */
+        #page-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.35);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        #page-overlay.show { display: flex; }
+        .spinner-border-lg { width: 3.5rem; height: 3.5rem; border-width: .4em; }
+
+        .readonly-input {
+            background: #f4f6f9;
+            cursor: not-allowed;
+        }
+
+        .settings-state {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: .9rem;
+        }
+    </style>
+}
+
+<!-- Page loading overlay -->
+<div id="page-overlay">
+    <div class="spinner-border text-light spinner-border-lg" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
+</div>
+
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-12">
+                <h1 class="m-0 text-dark">
+                    <i class="fas fa-paper-plane text-primary"></i> Bulk Email Sender
+                </h1>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="content">
+<div class="container-fluid">
+<div class="row justify-content-center">
+<div class="col-xl-8 col-lg-10 col-12">
+
+    <div class="card card-warning card-outline">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-cog mr-1"></i> Gmail SMTP Settings
+            </h3>
+            <div class="card-tools">
+                <span class="settings-state text-muted" id="smtp-status-text">
+                    <i class="fas fa-circle-notch"></i> Loading settings...
+                </span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-shield-alt mr-1"></i>
+                Use a <strong>Gmail App Password</strong>, not your normal Gmail password.
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="smtp-user-name">UserName (Gmail address) <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="smtp-user-name" placeholder="name@gmail.com" maxlength="256" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="smtp-password">Password (Gmail App Password) <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="smtp-password" placeholder="Leave blank to keep existing password" maxlength="512" />
+                        <small class="text-muted">For security, the saved password is never returned to the browser.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="default-from-address">DefaultFromAddress <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="default-from-address" placeholder="name@gmail.com" maxlength="256" />
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="default-from-display-name">DefaultFromDisplayName <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="default-from-display-name" placeholder="AutoMail" maxlength="128" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Host</label>
+                        <input type="text" class="form-control readonly-input" id="smtp-host" value="smtp.gmail.com" readonly />
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Port</label>
+                        <input type="text" class="form-control readonly-input" id="smtp-port" value="587" readonly />
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Security</label>
+                        <input type="text" class="form-control readonly-input" id="smtp-security" value="SSL/TLS enabled" readonly />
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" id="btn-save-settings" class="btn btn-warning">
+                <i class="fas fa-save mr-1"></i> Save Email Settings
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════ STEP 1 — Upload File ═══════════════════ -->
+    <div class="card card-primary card-outline">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-upload mr-1"></i> Step 1 — Upload Recipients File
+            </h3>
+        </div>
+        <div class="card-body">
+            <form id="upload-form" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="drop-zone" id="drop-zone">
+                    <div class="dz-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div class="dz-label">Drop your file here or <strong>click to browse</strong></div>
+                    <div class="dz-hint">Supported formats: <strong>.xlsx</strong> and <strong>.csv</strong></div>
+                    <input type="file" id="file-input" name="File" accept=".xlsx,.csv"
+                           style="display:none" />
+                </div>
+                <div id="file-name-display" class="mt-2 text-info font-weight-bold" style="display:none"></div>
+
+                <div class="form-group mt-3 mb-0">
+                    <label for="email-column-index">
+                        Email Column Index
+                        <small class="text-muted">(0 = first column)</small>
+                    </label>
+                    <input type="number" class="form-control" id="email-column-index"
+                           name="EmailColumnIndex" value="0" min="0" max="99" style="max-width:160px" />
+                </div>
+
+                <button type="button" id="btn-upload" class="btn btn-primary mt-3" disabled>
+                    <i class="fas fa-file-import mr-1"></i> Parse &amp; Store Emails
+                </button>
+            </form>
+
+            <!-- Upload result stats -->
+            <div id="upload-stats" class="row mt-4 text-center">
+                <div class="col-4">
+                    <div class="card bg-info">
+                        <div class="card-body py-2">
+                            <span class="stat-badge text-white" id="stat-parsed">0</span>
+                            <small class="text-white">Parsed</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card bg-warning">
+                        <div class="card-body py-2">
+                            <span class="stat-badge text-white" id="stat-skipped">0</span>
+                            <small class="text-white">Skipped / Duplicates</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card bg-success">
+                        <div class="card-body py-2">
+                            <span class="stat-badge text-white" id="stat-saved">0</span>
+                            <small class="text-white">Saved</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════ STEP 2 — Compose Email ════════════════ -->
+    <div class="card card-success card-outline" id="compose-card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-envelope-open-text mr-1"></i> Step 2 — Compose &amp; Send
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label for="email-subject">Subject <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="email-subject"
+                       placeholder="Enter email subject..." maxlength="500" />
+            </div>
+            <div class="form-group">
+                <label for="email-body">Body <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="email-body" rows="8"
+                          placeholder="Enter your email body here... HTML is supported."></textarea>
+            </div>
+
+            <button type="button" id="btn-send" class="btn btn-success btn-lg" disabled>
+                <i class="fas fa-rocket mr-1"></i> Send Emails
+            </button>
+            <small class="text-muted ml-2">Sending is handled by a background job — you can close this page safely.</small>
+        </div>
+    </div>
+
+</div>
+</div>
+</div>
+</section>
+
+@section scripts {
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
+
+    <script>
+    (function ($) {
+        'use strict';
+
+        // ── helpers ─────────────────────────────────────────────────────────
+        var overlay    = $('#page-overlay');
+        var btnUpload  = $('#btn-upload');
+        var btnSend    = $('#btn-send');
+        var btnSaveSettings = $('#btn-save-settings');
+        var fileInput  = $('#file-input');
+        var dropZone   = $('#drop-zone');
+
+        function showLoading()  { overlay.addClass('show'); }
+        function hideLoading()  { overlay.removeClass('show'); }
+
+        function toast(icon, title, text) {
+            Swal.fire({ icon: icon, title: title, text: text,
+                        toast: true, position: 'top-end',
+                        showConfirmButton: false, timer: 4000,
+                        timerProgressBar: true });
+        }
+
+        function alertError(msg) {
+            Swal.fire({ icon: 'error', title: 'Error', text: msg });
+        }
+
+        function getToken() {
+            return $('input[name="__RequestVerificationToken"]').val();
+        }
+
+        function setSettingsStatus(isConfigured) {
+            var statusText = $('#smtp-status-text');
+            if (isConfigured) {
+                statusText.removeClass('text-muted text-danger').addClass('text-success');
+                statusText.html('<i class="fas fa-check-circle"></i> Gmail SMTP is configured');
+            } else {
+                statusText.removeClass('text-muted text-success').addClass('text-danger');
+                statusText.html('<i class="fas fa-exclamation-circle"></i> Gmail SMTP is incomplete');
+            }
+        }
+
+        function loadEmailSettings() {
+            $.ajax({
+                url: '@Url.Action("EmailSettings", "BulkEmail")',
+                type: 'GET',
+                success: function (resp) {
+                    var data = resp.result || resp;
+                    $('#smtp-user-name').val(data.userName || '');
+                    $('#default-from-address').val(data.defaultFromAddress || '');
+                    $('#default-from-display-name').val(data.defaultFromDisplayName || '');
+                    $('#smtp-host').val(data.host || 'smtp.gmail.com');
+                    $('#smtp-port').val(data.port || 587);
+                    $('#smtp-security').val(data.enableSsl ? 'SSL/TLS enabled' : 'Disabled');
+                    setSettingsStatus(!!(data.userName && data.defaultFromAddress && data.defaultFromDisplayName && data.hasPassword));
+                },
+                error: function () {
+                    setSettingsStatus(false);
+                }
+            });
+        }
+
+        // ── file selection & drag-drop ───────────────────────────────────────
+        dropZone.on('click', function () { fileInput.trigger('click'); });
+
+        dropZone.on('dragover', function (e) {
+            e.preventDefault();
+            dropZone.addClass('dragover');
+        }).on('dragleave drop', function () {
+            dropZone.removeClass('dragover');
+        });
+
+        dropZone.on('drop', function (e) {
+            e.preventDefault();
+            var files = e.originalEvent.dataTransfer.files;
+            if (files.length) {
+                fileInput[0].files = files;
+                onFileSelected(files[0]);
+            }
+        });
+
+        fileInput.on('change', function () {
+            if (this.files.length) onFileSelected(this.files[0]);
+        });
+
+        function onFileSelected(file) {
+            var allowed = ['.xlsx', '.csv'];
+            var ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+            if (!allowed.includes(ext)) {
+                alertError('Only .xlsx and .csv files are supported.');
+                fileInput.val('');
+                return;
+            }
+            $('#file-name-display').text('📎 ' + file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)').show();
+            btnUpload.prop('disabled', false);
+        }
+
+        btnSaveSettings.on('click', function () {
+            var payload = {
+                userName: $.trim($('#smtp-user-name').val()),
+                password: $.trim($('#smtp-password').val()),
+                defaultFromAddress: $.trim($('#default-from-address').val()),
+                defaultFromDisplayName: $.trim($('#default-from-display-name').val())
+            };
+
+            if (!payload.userName || !payload.defaultFromAddress || !payload.defaultFromDisplayName) {
+                alertError('Please complete all required email settings fields.');
+                return;
+            }
+
+            showLoading();
+
+            $.ajax({
+                url: '@Url.Action("SaveEmailSettings", "BulkEmail")',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                headers: { 'RequestVerificationToken': getToken() },
+                success: function (resp) {
+                    hideLoading();
+                    $('#smtp-password').val('');
+                    setSettingsStatus(true);
+                    toast('success', 'Settings Saved', (resp.result && resp.result.message) ? resp.result.message : 'Gmail SMTP settings saved successfully.');
+                },
+                error: function (xhr) {
+                    hideLoading();
+                    var msg = 'Unable to save email settings.';
+                    try {
+                        var err = JSON.parse(xhr.responseText);
+                        msg = (err.error && err.error.message) ? err.error.message : msg;
+                    } catch (e) { }
+                    alertError(msg);
+                }
+            });
+        });
+
+        // ── upload / parse ───────────────────────────────────────────────────
+        btnUpload.on('click', function () {
+            var file = fileInput[0].files[0];
+            if (!file) { alertError('Please select a file first.'); return; }
+
+            var formData = new FormData();
+            formData.append('File', file);
+            formData.append('EmailColumnIndex', $('#email-column-index').val());
+
+            showLoading();
+
+            $.ajax({
+                url: '@Url.Action("Upload", "BulkEmail")',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: { 'RequestVerificationToken': getToken() },
+                success: function (resp) {
+                    hideLoading();
+                    // ABP wraps successful JSON in { result: ... }
+                    var data = resp.result || resp;
+                    $('#stat-parsed').text(data.parsedCount);
+                    $('#stat-skipped').text(data.skippedCount);
+                    $('#stat-saved').text(data.savedCount);
+                    $('#upload-stats').slideDown();
+
+                    if (data.savedCount > 0) {
+                        toast('success', 'Upload Successful',
+                              data.savedCount + ' new email(s) saved. ' +
+                              data.skippedCount + ' skipped.');
+                        btnSend.prop('disabled', false).addClass('pulse');
+                    } else {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'No New Emails',
+                            text: 'All ' + data.parsedCount + ' email(s) in the file already exist in the database.'
+                        });
+                    }
+                },
+                error: function (xhr) {
+                    hideLoading();
+                    var msg = 'An unexpected error occurred.';
+                    try {
+                        var err = JSON.parse(xhr.responseText);
+                        msg = (err.error && err.error.message) ? err.error.message : msg;
+                    } catch (e) { }
+                    alertError(msg);
+                }
+            });
+        });
+
+        // ── send ─────────────────────────────────────────────────────────────
+        btnSend.on('click', function () {
+            var subject = $.trim($('#email-subject').val());
+            var body    = $.trim($('#email-body').val());
+
+            if (!subject) {
+                alertError('Please enter an email subject.');
+                $('#email-subject').focus();
+                return;
+            }
+            if (!body) {
+                alertError('Please enter an email body.');
+                $('#email-body').focus();
+                return;
+            }
+
+            Swal.fire({
+                title: 'Confirm Send',
+                html: 'This will queue a background job to send emails to <strong>all unsent recipients</strong>.<br><br>Continue?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: '<i class="fas fa-rocket"></i> Yes, Send!',
+                cancelButtonText: 'Cancel'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+
+                showLoading();
+
+                $.ajax({
+                    url: '@Url.Action("Send", "BulkEmail")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ subject: subject, body: body }),
+                    headers: { 'RequestVerificationToken': getToken() },
+                    success: function (resp) {
+                        hideLoading();
+                        var msg = (resp.result && resp.result.message) ? resp.result.message : resp.message || 'Job queued.';
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Job Queued!',
+                            text: msg,
+                            confirmButtonColor: '#28a745'
+                        });
+                        btnSend.prop('disabled', true).removeClass('pulse');
+                    },
+                    error: function (xhr) {
+                        hideLoading();
+                        var msg = 'An unexpected error occurred.';
+                        try {
+                            var err = JSON.parse(xhr.responseText);
+                            msg = (err.error && err.error.message) ? err.error.message : msg;
+                        } catch (e) { }
+                        alertError(msg);
+                    }
+                });
+            });
+        });
+
+        loadEmailSettings();
+
+    }(jQuery));
+    </script>
+}

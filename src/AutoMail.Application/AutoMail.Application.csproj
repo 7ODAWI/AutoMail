@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <VersionPrefix>1.0.0.0</VersionPrefix>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssetTargetFallback>$(AssetTargetFallback);portable-net45+win8+wp8+wpa81;</AssetTargetFallback>
+    <AssemblyName>AutoMail.Application</AssemblyName>
+    <PackageId>AutoMail.Application</PackageId>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+    <RootNamespace>AutoMail</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AutoMail.Core\AutoMail.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Excel parsing (MIT licensed) -->
+    <PackageReference Include="ClosedXML" Version="0.102.3" />
+    <!-- CSV parsing (Apache 2.0 licensed) -->
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
+  </ItemGroup>
+</Project>
