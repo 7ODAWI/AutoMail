@@ -60,8 +60,14 @@ public class AutoMailNavigationProvider : NavigationProvider
                     url: "BulkEmail",
                     icon: "fas fa-paper-plane",
                     requiresAuthentication: true
-                )
-            )
+                )            ).AddItem(
+                new MenuItemDefinition(
+                    PageNames.EmailSenders,
+                    new FixedLocalizableString("Email Senders"),
+                    url: "EmailSender",
+                    icon: "fas fa-server",
+                    requiresAuthentication: true
+                )            )
             .AddItem( // Menu items below is just for demonstration!
                 new MenuItemDefinition(
                     "MultiLevelMenu",

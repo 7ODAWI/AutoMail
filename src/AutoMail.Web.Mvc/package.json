@@ -4,7 +4,8 @@
     "create-bundles": "yarn && gulp buildDev",
     "build": "yarn && gulp build",
     "prettier": "npx prettier --write .",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prepare": "husky"
   },
   "version": "10.1.0",
   "license": "MIT",
@@ -46,6 +47,7 @@
     "gulp-less": "^5.0.0",
     "gulp-postcss": "10.0.0",
     "gulp-terser": "^2.1.0",
+    "husky": "^9.1.7",
     "merge-stream": "^2.0.0",
     "postcss": "^8.5.3",
     "postcss-url": "^10.1.3",

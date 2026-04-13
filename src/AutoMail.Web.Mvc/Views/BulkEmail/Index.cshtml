@@ -1,5 +1,6 @@
 @{
     ViewBag.Title = "Bulk Email Sender";
+    Layout = "~/Views/Shared/Layout/_LayoutEmail.cshtml";
 }
 
 @section styles {
@@ -57,11 +58,15 @@
             cursor: not-allowed;
         }
 
-        .settings-state {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: .9rem;
+        /* Dashboard stat cards */
+        .dashboard-stat .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            display: block;
+        }
+        .dashboard-stat .stat-label {
+            font-size: .85rem;
+            color: #888;
         }
     </style>
 }
@@ -90,78 +95,72 @@
 <div class="row justify-content-center">
 <div class="col-xl-8 col-lg-10 col-12">
 
-    <div class="card card-warning card-outline">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-cog mr-1"></i> Gmail SMTP Settings
-            </h3>
-            <div class="card-tools">
-                <span class="settings-state text-muted" id="smtp-status-text">
-                    <i class="fas fa-circle-notch"></i> Loading settings...
-                </span>
+    <!-- ═══════════════════════════ Dashboard Stats ═══════════════════════ -->
+    <div class="row" id="dashboard-stats">
+        <div class="col-md-3 col-6">
+            <div class="small-box bg-info">
+                <div class="inner dashboard-stat">
+                    <span class="stat-value" id="stat-pending">-</span>
+                    <span class="stat-label">Pending</span>
+                </div>
+                <div class="icon"><i class="fas fa-clock"></i></div>
             </div>
         </div>
-        <div class="card-body">
-            <div class="alert alert-warning">
-                <i class="fas fa-shield-alt mr-1"></i>
-                Use a <strong>Gmail App Password</strong>, not your normal Gmail password.
+        <div class="col-md-3 col-6">
+            <div class="small-box bg-success">
+                <div class="inner dashboard-stat">
+                    <span class="stat-value" id="stat-sent-today">-</span>
+                    <span class="stat-label">Sent Today</span>
+                </div>
+                <div class="icon"><i class="fas fa-check-circle"></i></div>
             </div>
-
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="smtp-user-name">UserName (Gmail address) <span class="text-danger">*</span></label>
-                        <input type="email" class="form-control" id="smtp-user-name" placeholder="name@gmail.com" maxlength="256" />
-                    </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="small-box bg-warning">
+                <div class="inner dashboard-stat">
+                    <span class="stat-value" id="stat-failed-today">-</span>
+                    <span class="stat-label">Failed Today</span>
                 </div>
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="smtp-password">Password (Gmail App Password) <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="smtp-password" placeholder="Leave blank to keep existing password" maxlength="512" />
-                        <small class="text-muted">For security, the saved password is never returned to the browser.</small>
-                    </div>
-                </div>
+                <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
             </div>
-
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="default-from-address">DefaultFromAddress <span class="text-danger">*</span></label>
-                        <input type="email" class="form-control" id="default-from-address" placeholder="name@gmail.com" maxlength="256" />
-                    </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="small-box bg-danger">
+                <div class="inner dashboard-stat">
+                    <span class="stat-value" id="stat-perm-failed">-</span>
+                    <span class="stat-label">Permanently Failed</span>
                 </div>
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="default-from-display-name">DefaultFromDisplayName <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="default-from-display-name" placeholder="AutoMail" maxlength="128" />
-                    </div>
-                </div>
+                <div class="icon"><i class="fas fa-times-circle"></i></div>
             </div>
+        </div>
+    </div>
 
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label>Host</label>
-                        <input type="text" class="form-control readonly-input" id="smtp-host" value="smtp.gmail.com" readonly />
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label>Port</label>
-                        <input type="text" class="form-control readonly-input" id="smtp-port" value="587" readonly />
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-group">
-                        <label>Security</label>
-                        <input type="text" class="form-control readonly-input" id="smtp-security" value="SSL/TLS enabled" readonly />
-                    </div>
-                </div>
+    <!-- Sender breakdown -->
+    <div class="card card-outline card-secondary collapsed-card" id="sender-breakdown-card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-server mr-1"></i> Sender Breakdown</h3>
+            <div class="card-tools">
+                <a href="@Url.Action("Index", "EmailSender")" class="btn btn-tool btn-sm text-primary" title="Manage Senders">
+                    <i class="fas fa-cogs"></i> Manage Senders
+                </a>
+                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                    <i class="fas fa-plus"></i>
+                </button>
             </div>
-
-            <button type="button" id="btn-save-settings" class="btn btn-warning">
-                <i class="fas fa-save mr-1"></i> Save Email Settings
-            </button>
+        </div>
+        <div class="card-body p-0" style="display: none;">
+            <table class="table table-sm table-striped mb-0" id="sender-breakdown-table">
+                <thead>
+                    <tr>
+                        <th>Sender</th>
+                        <th>Sent Today</th>
+                        <th>Remaining</th>
+                        <th>Daily Limit</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
         </div>
     </div>
 
@@ -254,6 +253,28 @@
         </div>
     </div>
 
+    <!-- ═══════════════════════════ Failed Emails ═════════════════════════ -->
+    <div class="card card-danger card-outline">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-exclamation-circle mr-1"></i> Failed Emails
+            </h3>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                Download a CSV of all permanently failed emails, or retry emails that haven't exceeded the max retry limit (3 attempts).
+            </p>
+            <div class="btn-group">
+                <a href="@Url.Action("DownloadFailedEmails", "BulkEmail")" class="btn btn-outline-danger" id="btn-download-failed">
+                    <i class="fas fa-file-csv mr-1"></i> Download Failed (CSV)
+                </a>
+                <button type="button" class="btn btn-outline-warning" id="btn-retry-failed">
+                    <i class="fas fa-redo mr-1"></i> Retry Failed Emails
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 </div>
 </div>
@@ -272,7 +293,6 @@
         var overlay    = $('#page-overlay');
         var btnUpload  = $('#btn-upload');
         var btnSend    = $('#btn-send');
-        var btnSaveSettings = $('#btn-save-settings');
         var fileInput  = $('#file-input');
         var dropZone   = $('#drop-zone');
 
@@ -294,33 +314,35 @@
             return $('input[name="__RequestVerificationToken"]').val();
         }
 
-        function setSettingsStatus(isConfigured) {
-            var statusText = $('#smtp-status-text');
-            if (isConfigured) {
-                statusText.removeClass('text-muted text-danger').addClass('text-success');
-                statusText.html('<i class="fas fa-check-circle"></i> Gmail SMTP is configured');
-            } else {
-                statusText.removeClass('text-muted text-success').addClass('text-danger');
-                statusText.html('<i class="fas fa-exclamation-circle"></i> Gmail SMTP is incomplete');
-            }
-        }
-
-        function loadEmailSettings() {
+        // ── dashboard ────────────────────────────────────────────────────────
+        function loadDashboard() {
             $.ajax({
-                url: '@Url.Action("EmailSettings", "BulkEmail")',
+                url: '@Url.Action("Dashboard", "BulkEmail")',
                 type: 'GET',
                 success: function (resp) {
-                    var data = resp.result || resp;
-                    $('#smtp-user-name').val(data.userName || '');
-                    $('#default-from-address').val(data.defaultFromAddress || '');
-                    $('#default-from-display-name').val(data.defaultFromDisplayName || '');
-                    $('#smtp-host').val(data.host || 'smtp.gmail.com');
-                    $('#smtp-port').val(data.port || 587);
-                    $('#smtp-security').val(data.enableSsl ? 'SSL/TLS enabled' : 'Disabled');
-                    setSettingsStatus(!!(data.userName && data.defaultFromAddress && data.defaultFromDisplayName && data.hasPassword));
-                },
-                error: function () {
-                    setSettingsStatus(false);
+                    var d = resp.result || resp;
+                    $('#stat-pending').text(d.totalPending);
+                    $('#stat-sent-today').text(d.totalSentToday);
+                    $('#stat-failed-today').text(d.totalFailedToday);
+                    $('#stat-perm-failed').text(d.totalPermanentlyFailed);
+
+                    var tbody = $('#sender-breakdown-table tbody');
+                    tbody.empty();
+                    if (d.senderBreakdown && d.senderBreakdown.length) {
+                        $.each(d.senderBreakdown, function (_, s) {
+                            tbody.append(
+                                '<tr>' +
+                                '<td>' + $('<span>').text(s.displayName + ' (' + s.email + ')').html() + '</td>' +
+                                '<td>' + s.sentToday + '</td>' +
+                                '<td>' + s.remainingQuota + '</td>' +
+                                '<td>' + s.dailyLimit + '</td>' +
+                                '<td>' + (s.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-secondary">Inactive</span>') + '</td>' +
+                                '</tr>'
+                            );
+                        });
+                    } else {
+                        tbody.append('<tr><td colspan="5" class="text-center text-muted">No senders configured. <a href="@Url.Action("Index", "EmailSender")">Add one now</a>.</td></tr>');
+                    }
                 }
             });
         }
@@ -359,45 +381,6 @@
             $('#file-name-display').text('📎 ' + file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)').show();
             btnUpload.prop('disabled', false);
         }
-
-        btnSaveSettings.on('click', function () {
-            var payload = {
-                userName: $.trim($('#smtp-user-name').val()),
-                password: $.trim($('#smtp-password').val()),
-                defaultFromAddress: $.trim($('#default-from-address').val()),
-                defaultFromDisplayName: $.trim($('#default-from-display-name').val())
-            };
-
-            if (!payload.userName || !payload.defaultFromAddress || !payload.defaultFromDisplayName) {
-                alertError('Please complete all required email settings fields.');
-                return;
-            }
-
-            showLoading();
-
-            $.ajax({
-                url: '@Url.Action("SaveEmailSettings", "BulkEmail")',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(payload),
-                headers: { 'RequestVerificationToken': getToken() },
-                success: function (resp) {
-                    hideLoading();
-                    $('#smtp-password').val('');
-                    setSettingsStatus(true);
-                    toast('success', 'Settings Saved', (resp.result && resp.result.message) ? resp.result.message : 'Gmail SMTP settings saved successfully.');
-                },
-                error: function (xhr) {
-                    hideLoading();
-                    var msg = 'Unable to save email settings.';
-                    try {
-                        var err = JSON.parse(xhr.responseText);
-                        msg = (err.error && err.error.message) ? err.error.message : msg;
-                    } catch (e) { }
-                    alertError(msg);
-                }
-            });
-        });
 
         // ── upload / parse ───────────────────────────────────────────────────
         btnUpload.on('click', function () {
@@ -511,7 +494,61 @@
             });
         });
 
-        loadEmailSettings();
+        // ── retry failed ─────────────────────────────────────────────────────
+        $('#btn-retry-failed').on('click', function () {
+            var subject = $.trim($('#email-subject').val());
+            var body    = $.trim($('#email-body').val());
+
+            if (!subject) {
+                alertError('Please enter an email subject before retrying.');
+                $('#email-subject').focus();
+                return;
+            }
+            if (!body) {
+                alertError('Please enter an email body before retrying.');
+                $('#email-body').focus();
+                return;
+            }
+
+            Swal.fire({
+                title: 'Retry Failed Emails?',
+                html: 'This will re-queue all failed emails that haven\'t exceeded the max retry limit (3 attempts).',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ffc107',
+                confirmButtonText: '<i class="fas fa-redo"></i> Yes, Retry',
+                cancelButtonText: 'Cancel'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+
+                showLoading();
+
+                $.ajax({
+                    url: '@Url.Action("RetryFailedEmails", "BulkEmail")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ subject: subject, body: body }),
+                    headers: { 'RequestVerificationToken': getToken() },
+                    success: function (resp) {
+                        hideLoading();
+                        var msg = (resp.result && resp.result.message) ? resp.result.message : 'Retry job queued.';
+                        Swal.fire({ icon: 'success', title: 'Retry Queued', text: msg, confirmButtonColor: '#28a745' });
+                        loadDashboard();
+                    },
+                    error: function (xhr) {
+                        hideLoading();
+                        var msg = 'An unexpected error occurred.';
+                        try {
+                            var err = JSON.parse(xhr.responseText);
+                            msg = (err.error && err.error.message) ? err.error.message : msg;
+                        } catch (e) { }
+                        alertError(msg);
+                    }
+                });
+            });
+        });
+
+        loadDashboard();
 
     }(jQuery));
     </script>

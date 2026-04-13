@@ -7,11 +7,6 @@ using System.Threading.Tasks;
 
 namespace AutoMail.Web.Controllers
 {
-    /// <summary>
-    /// Handles the Bulk Email sending page.
-    /// All AJAX endpoints return JSON; the page itself is a single Razor view.
-    /// </summary>
-    [AbpMvcAuthorize]
     public class BulkEmailController : AutoMailControllerBase
     {
         private readonly IBulkEmailAppService _bulkEmailAppService;
@@ -21,20 +16,11 @@ namespace AutoMail.Web.Controllers
             _bulkEmailAppService = bulkEmailAppService;
         }
 
-        // GET /BulkEmail
         public ActionResult Index()
         {
             return View();
         }
 
-        [HttpGet]
-        public async Task<JsonResult> EmailSettings()
-        {
-            var result = await _bulkEmailAppService.GetEmailSettingsAsync();
-            return Json(result);
-        }
-
-        // POST /BulkEmail/Upload
         [HttpPost]
         public async Task<JsonResult> Upload(UploadEmailsInput input)
         {
@@ -42,7 +28,6 @@ namespace AutoMail.Web.Controllers
             return Json(result);
         }
 
-        // POST /BulkEmail/Send
         [HttpPost]
         public async Task<JsonResult> Send([FromBody] SendBulkEmailInput input)
         {
@@ -50,11 +35,25 @@ namespace AutoMail.Web.Controllers
             return Json(new { message = "Email job has been queued successfully." });
         }
 
-        [HttpPost]
-        public async Task<JsonResult> SaveEmailSettings([FromBody] UpdateGmailEmailSettingsInput input)
+        [HttpGet]
+        public async Task<JsonResult> Dashboard()
         {
-            await _bulkEmailAppService.UpdateEmailSettingsAsync(input);
-            return Json(new { message = "Gmail SMTP settings saved successfully." });
+            var result = await _bulkEmailAppService.GetDashboardStatsAsync();
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadFailedEmails()
+        {
+            var csvBytes = await _bulkEmailAppService.ExportFailedEmailsCsvAsync();
+            return File(csvBytes, "text/csv", "failed-emails.csv");
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> RetryFailedEmails([FromBody] SendBulkEmailInput input)
+        {
+            await _bulkEmailAppService.RetryFailedEmailsAsync(input);
+            return Json(new { message = "Retry job has been queued successfully." });
         }
     }
 }

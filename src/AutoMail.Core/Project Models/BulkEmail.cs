@@ -19,5 +19,11 @@ namespace AutoMail.Project_Models
 
         /// <summary>Whether the email has been sent via a background job.</summary>
         public bool IsSent { get; set; }
+
+        /// <summary>
+        /// Number of failed send attempts. Used for exponential backoff.
+        /// Authoritative history is in BulkEmailLog records.
+        /// </summary>
+        public int RetryCount { get; set; }
     }
 }

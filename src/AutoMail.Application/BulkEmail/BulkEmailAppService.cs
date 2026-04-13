@@ -1,11 +1,9 @@
 using Abp.BackgroundJobs;
-using Abp.Configuration;
 using Abp.Domain.Repositories;
-using Abp.Net.Mail;
+using Abp.Timing;
 using Abp.UI;
 using AutoMail.BulkEmail.Dto;
 using AutoMail.BulkEmail.Jobs;
-using AutoMail.Configuration;
 using AutoMail.Project_Models;
 using ClosedXML.Excel;
 using CsvHelper;
@@ -16,36 +14,36 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace AutoMail.BulkEmail
 {
-    /// <summary>
-    /// Handles file upload, email parsing, persistence and job enqueueing.
-    /// </summary>
     public class BulkEmailAppService : AutoMailAppServiceBase, IBulkEmailAppService
     {
-        // Supported file extensions
+        private const int MaxRetries = 3;
         private static readonly string[] AllowedExtensions = { ".xlsx", ".csv" };
 
-        // Simple but robust RFC-compliant email regex
         private static readonly Regex EmailRegex = new Regex(
             @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly IRepository<Project_Models.BulkEmail, long> _emailRepository;
+        private readonly IRepository<EmailSender, int> _senderRepository;
+        private readonly IRepository<BulkEmailLog, long> _logRepository;
         private readonly IBackgroundJobManager _backgroundJobManager;
-        private readonly ISettingManager _settingManager;
 
         public BulkEmailAppService(
             IRepository<Project_Models.BulkEmail, long> emailRepository,
-            IBackgroundJobManager backgroundJobManager,
-            ISettingManager settingManager)
+            IRepository<EmailSender, int> senderRepository,
+            IRepository<BulkEmailLog, long> logRepository,
+            IBackgroundJobManager backgroundJobManager)
         {
             _emailRepository = emailRepository;
+            _senderRepository = senderRepository;
+            _logRepository = logRepository;
             _backgroundJobManager = backgroundJobManager;
-            _settingManager = settingManager;
         }
 
         // ------------------------------------------------------------------ //
@@ -55,20 +53,18 @@ namespace AutoMail.BulkEmail
         public async Task<UploadEmailsResult> UploadAndStoreEmailsAsync(UploadEmailsInput input)
         {
             if (input.File == null || input.File.Length == 0)
-                throw new Abp.UI.UserFriendlyException("Please select a valid file.");
+                throw new UserFriendlyException("Please select a valid file.");
 
             var ext = Path.GetExtension(input.File.FileName).ToLowerInvariant();
             if (!AllowedExtensions.Contains(ext))
-                throw new Abp.UI.UserFriendlyException("Only .xlsx and .csv files are supported.");
+                throw new UserFriendlyException("Only .xlsx and .csv files are supported.");
 
-            // --- Parse raw emails from file ---
             IReadOnlyList<string> parsedEmails = ext == ".csv"
                 ? await ParseCsvAsync(input.File.OpenReadStream(), input.EmailColumnIndex)
                 : ParseExcel(input.File.OpenReadStream(), input.EmailColumnIndex);
 
             var result = new UploadEmailsResult { ParsedCount = parsedEmails.Count };
 
-            // --- Validate & de-duplicate within the file ---
             var validEmails = parsedEmails
                 .Select(e => e?.Trim().ToLowerInvariant())
                 .Where(e => !string.IsNullOrWhiteSpace(e) && EmailRegex.IsMatch(e))
@@ -78,9 +74,8 @@ namespace AutoMail.BulkEmail
             result.SkippedCount = result.ParsedCount - validEmails.Count;
 
             if (!validEmails.Any())
-                throw new Abp.UI.UserFriendlyException("No valid email addresses were found in the uploaded file.");
+                throw new UserFriendlyException("No valid email addresses were found in the uploaded file.");
 
-            // --- Filter out emails already in the database ---
             var existingEmails = await _emailRepository
                 .GetAll()
                 .Where(e => validEmails.Contains(e.Email))
@@ -94,7 +89,6 @@ namespace AutoMail.BulkEmail
             result.SkippedCount += existingEmails.Count;
             result.SavedCount = newEmails.Count;
 
-            // --- Persist new emails (batch insert) ---
             foreach (var email in newEmails)
             {
                 await _emailRepository.InsertAsync(new Project_Models.BulkEmail
@@ -103,9 +97,6 @@ namespace AutoMail.BulkEmail
                     IsSent = false
                 });
             }
-
-            // CurrentUnitOfWork is committed automatically by ABP when the
-            // application service method completes successfully.
 
             return result;
         }
@@ -116,10 +107,13 @@ namespace AutoMail.BulkEmail
 
         public async Task EnqueueSendJobAsync(SendBulkEmailInput input)
         {
-            await EnsureEmailSettingsConfiguredAsync();
+            var hasActiveSenders = await _senderRepository.GetAll()
+                .AnyAsync(s => s.IsActive);
 
-            var pendingCount = await _emailRepository
-                .GetAll()
+            if (!hasActiveSenders)
+                throw new UserFriendlyException("No active email senders configured. Please add at least one sender before sending.");
+
+            var pendingCount = await _emailRepository.GetAll()
                 .CountAsync(e => !e.IsSent);
 
             if (pendingCount == 0)
@@ -129,49 +123,121 @@ namespace AutoMail.BulkEmail
                 new BulkEmailJobArgs
                 {
                     Subject = input.Subject,
-                    Body = input.Body
+                    Body = input.Body,
+                    IsRetry = false
                 });
         }
 
-        public async Task<GmailEmailSettingsDto> GetEmailSettingsAsync()
-        {
-            var userName = await _settingManager.GetSettingValueForApplicationAsync(EmailSettingNames.Smtp.UserName);
-            var defaultFromAddress = await _settingManager.GetSettingValueForApplicationAsync(EmailSettingNames.DefaultFromAddress);
-            var defaultFromDisplayName = await _settingManager.GetSettingValueForApplicationAsync(EmailSettingNames.DefaultFromDisplayName);
-            var password = await _settingManager.GetSettingValueForApplicationAsync(EmailSettingNames.Smtp.Password);
+        // ------------------------------------------------------------------ //
+        //  Failed Emails — Export & Retry
+        // ------------------------------------------------------------------ //
 
-            return new GmailEmailSettingsDto
+        public async Task<byte[]> ExportFailedEmailsCsvAsync()
+        {
+            // Get the latest failed attempt per BulkEmail (group by BulkEmailId, take max AttemptNumber)
+            var failedLogs = await _logRepository.GetAll()
+                .Where(l => l.Status == SendStatus.Failed)
+                .GroupBy(l => l.BulkEmailId)
+                .Select(g => g.OrderByDescending(l => l.AttemptNumber).First())
+                .ToListAsync();
+
+            if (!failedLogs.Any())
+                throw new UserFriendlyException("No failed emails to export.");
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Email,ErrorMessage,AttemptCount,LastAttemptTime");
+
+            foreach (var log in failedLogs)
             {
-                UserName = userName,
-                DefaultFromAddress = defaultFromAddress,
-                DefaultFromDisplayName = defaultFromDisplayName,
-                Host = GmailSmtpDefaults.Host,
-                Port = GmailSmtpDefaults.Port,
-                EnableSsl = GmailSmtpDefaults.EnableSsl,
-                HasPassword = !string.IsNullOrWhiteSpace(password)
-            };
+                var escapedError = (log.ErrorMessage ?? "").Replace("\"", "\"\"");
+                sb.AppendLine($"\"{log.EmailAddress}\",\"{escapedError}\",{log.AttemptNumber},{log.SentTime:yyyy-MM-dd HH:mm:ss}");
+            }
+
+            return Encoding.UTF8.GetBytes(sb.ToString());
         }
 
-        public async Task UpdateEmailSettingsAsync(UpdateGmailEmailSettingsInput input)
+        public async Task RetryFailedEmailsAsync(SendBulkEmailInput input)
         {
-            if (!EmailRegex.IsMatch(input.UserName))
-                throw new UserFriendlyException("Please enter a valid Gmail address.");
+            var hasRetryable = await _emailRepository.GetAll()
+                .AnyAsync(e => !e.IsSent && e.RetryCount > 0 && e.RetryCount < MaxRetries);
 
-            if (!EmailRegex.IsMatch(input.DefaultFromAddress))
-                throw new UserFriendlyException("Please enter a valid default from address.");
+            if (!hasRetryable)
+                throw new UserFriendlyException("No retryable failed emails found. Emails may have exceeded the maximum retry count.");
 
-            await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.Smtp.Host, GmailSmtpDefaults.Host);
-            await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.Smtp.Port, GmailSmtpDefaults.Port.ToString());
-            await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.Smtp.EnableSsl, GmailSmtpDefaults.EnableSsl.ToString().ToLowerInvariant());
-            await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.Smtp.UseDefaultCredentials, false.ToString().ToLowerInvariant());
-            await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.Smtp.UserName, input.UserName.Trim());
-            await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.DefaultFromAddress, input.DefaultFromAddress.Trim());
-            await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.DefaultFromDisplayName, input.DefaultFromDisplayName.Trim());
+            var hasActiveSenders = await _senderRepository.GetAll()
+                .AnyAsync(s => s.IsActive);
 
-            if (!string.IsNullOrWhiteSpace(input.Password))
+            if (!hasActiveSenders)
+                throw new UserFriendlyException("No active email senders configured.");
+
+            await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
+                new BulkEmailJobArgs
+                {
+                    Subject = input.Subject,
+                    Body = input.Body,
+                    IsRetry = true
+                });
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Dashboard / Monitoring
+        // ------------------------------------------------------------------ //
+
+        public async Task<BulkEmailDashboardDto> GetDashboardStatsAsync()
+        {
+            var todayUtc = Clock.Now.Date;
+
+            var totalPending = await _emailRepository.GetAll()
+                .CountAsync(e => !e.IsSent && e.RetryCount < MaxRetries);
+
+            var totalPermanentlyFailed = await _emailRepository.GetAll()
+                .CountAsync(e => !e.IsSent && e.RetryCount >= MaxRetries);
+
+            var totalSentToday = await _logRepository.GetAll()
+                .CountAsync(l => l.Status == SendStatus.Success
+                              && l.SentTime.HasValue
+                              && l.SentTime.Value >= todayUtc);
+
+            var totalSentAllTime = await _logRepository.GetAll()
+                .CountAsync(l => l.Status == SendStatus.Success);
+
+            var totalFailedToday = await _logRepository.GetAll()
+                .CountAsync(l => l.Status == SendStatus.Failed
+                              && l.CreationTime >= todayUtc);
+
+            // Per-sender breakdown
+            var senders = await _senderRepository.GetAll().ToListAsync();
+            var senderBreakdown = new List<SenderStatsDto>();
+
+            foreach (var sender in senders)
             {
-                await _settingManager.ChangeSettingForApplicationAsync(EmailSettingNames.Smtp.Password, input.Password.Trim());
+                var sentToday = await _logRepository.GetAll()
+                    .CountAsync(l => l.SenderId == sender.Id
+                                  && l.Status == SendStatus.Success
+                                  && l.SentTime.HasValue
+                                  && l.SentTime.Value >= todayUtc);
+
+                senderBreakdown.Add(new SenderStatsDto
+                {
+                    SenderId = sender.Id,
+                    DisplayName = sender.DisplayName,
+                    Email = sender.Email,
+                    SentToday = sentToday,
+                    RemainingQuota = Math.Max(0, sender.DailyLimit - sentToday),
+                    DailyLimit = sender.DailyLimit,
+                    IsActive = sender.IsActive
+                });
             }
+
+            return new BulkEmailDashboardDto
+            {
+                TotalPending = totalPending,
+                TotalSentToday = totalSentToday,
+                TotalSentAllTime = totalSentAllTime,
+                TotalFailedToday = totalFailedToday,
+                TotalPermanentlyFailed = totalPermanentlyFailed,
+                SenderBreakdown = senderBreakdown
+            };
         }
 
         // ------------------------------------------------------------------ //
@@ -184,11 +250,10 @@ namespace AutoMail.BulkEmail
             using var workbook = new XLWorkbook(stream);
             var worksheet = workbook.Worksheets.First();
 
-            // Skip the header row (row 1) and read from row 2 onwards
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 1;
             for (int row = 2; row <= lastRow; row++)
             {
-                var cell = worksheet.Cell(row, columnIndex + 1); // ClosedXML is 1-based
+                var cell = worksheet.Cell(row, columnIndex + 1);
                 var value = cell.GetString()?.Trim();
                 if (!string.IsNullOrWhiteSpace(value))
                     emails.Add(value);
@@ -212,32 +277,17 @@ namespace AutoMail.BulkEmail
 
             using var csv = new CsvReader(reader, config);
 
-            // Read header
             await csv.ReadAsync();
             csv.ReadHeader();
 
             while (await csv.ReadAsync())
             {
-                // Try to get by index (column-index based approach so it's file-agnostic)
                 var value = csv.GetField(columnIndex)?.Trim();
                 if (!string.IsNullOrWhiteSpace(value))
                     emails.Add(value);
             }
 
             return emails;
-        }
-
-        private async Task EnsureEmailSettingsConfiguredAsync()
-        {
-            var settings = await GetEmailSettingsAsync();
-
-            if (string.IsNullOrWhiteSpace(settings.UserName) ||
-                string.IsNullOrWhiteSpace(settings.DefaultFromAddress) ||
-                string.IsNullOrWhiteSpace(settings.DefaultFromDisplayName) ||
-                !settings.HasPassword)
-            {
-                throw new UserFriendlyException("Email settings are not configured. Please save the Gmail SMTP settings before sending emails.");
-            }
         }
     }
 }

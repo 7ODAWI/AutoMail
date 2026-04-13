@@ -11,5 +11,6 @@ namespace AutoMail.BulkEmail.Jobs
     {
         public string Subject { get; set; }
         public string Body { get; set; }
+        public bool IsRetry { get; set; }
     }
 }
