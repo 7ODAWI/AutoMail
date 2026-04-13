@@ -5,6 +5,7 @@
 
 @section styles {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.css" />
     <style>
         .drop-zone {
             border: 2px dashed #1a7be4;
@@ -107,8 +108,7 @@
             </div>
             <div class="form-group">
                 <label for="email-body">Body <span class="text-danger">*</span></label>
-                <textarea class="form-control" id="email-body" rows="8"
-                          placeholder="Enter your email body here... HTML is supported."></textarea>
+                <div id="email-body"></div>
             </div>
         </div>
     </div>
@@ -243,6 +243,7 @@
 
 @section scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.js"></script>
     <script>
     (function ($) {
         'use strict';
@@ -276,19 +277,45 @@
             return $('<span>').text(str).html();
         }
 
+        $('#email-body').summernote({
+            height: 250,
+            placeholder: 'Compose your email body here...',
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'strikethrough', 'clear']],
+                ['fontname', ['fontname']],
+                ['fontsize', ['fontsize']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['table', ['table']],
+                ['insert', ['link', 'picture', 'hr']],
+                ['view', ['fullscreen', 'codeview', 'undo', 'redo']]
+            ],
+            callbacks: {
+                onChange: function () { updateStartButton(); }
+            }
+        });
+
+        function getBodyHtml() {
+            return $('#email-body').summernote('code');
+        }
+
         function updateStartButton() {
             var hasFile    = !!selectedFile;
             var hasSubject = $.trim($('#email-subject').val()).length > 0;
-            var hasBody    = $.trim($('#email-body').val()).length > 0;
+            var body       = getBodyHtml();
+            var hasBody    = body && $.trim($('<div>').html(body).text()).length > 0;
             btnStart.prop('disabled', !(hasFile && hasSubject && hasBody));
         }
 
-        $('#email-subject, #email-body').on('input', updateStartButton);
+        $('#email-subject').on('input', updateStartButton);
 
         // ── File drag-drop ──────────────────────────────────────────────
+        $(document).on('dragover drop', function (e) { e.preventDefault(); });
+        fileInput.on('click', function (e) { e.stopPropagation(); });
         dropZone.on('click', function () { fileInput.trigger('click'); });
         dropZone.on('dragover', function (e) { e.preventDefault(); dropZone.addClass('dragover'); })
-                .on('dragleave drop', function () { dropZone.removeClass('dragover'); });
+                .on('dragleave drop', function (e) { e.preventDefault(); dropZone.removeClass('dragover'); });
 
         dropZone.on('drop', function (e) {
             e.preventDefault();
@@ -460,9 +487,10 @@
         btnStart.on('click', function () {
             if (!selectedFile) { alertError('Please select a file.'); return; }
             var subject = $.trim($('#email-subject').val());
-            var body    = $.trim($('#email-body').val());
+            var body    = getBodyHtml();
+            var bodyText = $.trim($('<div>').html(body).text());
             if (!subject) { alertError('Please enter a subject.'); $('#email-subject').focus(); return; }
-            if (!body)    { alertError('Please enter a body.'); $('#email-body').focus(); return; }
+            if (!bodyText) { alertError('Please enter a body.'); $('#email-body').summernote('focus'); return; }
 
             Swal.fire({
                 title: 'Start Operation?',

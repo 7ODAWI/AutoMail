@@ -5477,3 +5477,57 @@ INFO  2026-04-13 19:08:08,836 [5    ] rastructure.SystemTextJsonResultExecutor -
 INFO  2026-04-13 19:08:08,837 [5    ] c.Infrastructure.ControllerActionInvoker - Executed action AutoMail.Web.Controllers.BulkEmailController.GetAll (AutoMail.Web.Mvc) in 54.7071ms
 INFO  2026-04-13 19:08:08,838 [5    ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'AutoMail.Web.Controllers.BulkEmailController.GetAll (AutoMail.Web.Mvc)'
 INFO  2026-04-13 19:08:08,838 [5    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44312/BulkEmail/GetAll - 200 - application/json;+charset=utf-8 68.8411ms
+INFO  2026-04-13 19:08:39,448 [21   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44312/ - - -
+INFO  2026-04-13 19:08:39,485 [21   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'AutoMail.Web.Controllers.BulkEmailController.Index (AutoMail.Web.Mvc)'
+INFO  2026-04-13 19:08:39,508 [21   ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "Index", controller = "BulkEmail", area = ""}. Executing controller action with signature Microsoft.AspNetCore.Mvc.ActionResult Index() on controller AutoMail.Web.Controllers.BulkEmailController (AutoMail.Web.Mvc).
+INFO  2026-04-13 19:08:39,562 [5    ] Core.Mvc.ViewFeatures.ViewResultExecutor - Executing ViewResult, running view Index.
+INFO  2026-04-13 19:08:39,574 [5    ] Core.Mvc.ViewFeatures.ViewResultExecutor - Executed ViewResult - view Index executed in 11.8953ms.
+INFO  2026-04-13 19:08:39,575 [5    ] c.Infrastructure.ControllerActionInvoker - Executed action AutoMail.Web.Controllers.BulkEmailController.Index (AutoMail.Web.Mvc) in 66.6023ms
+INFO  2026-04-13 19:08:39,576 [5    ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'AutoMail.Web.Controllers.BulkEmailController.Index (AutoMail.Web.Mvc)'
+INFO  2026-04-13 19:08:39,577 [5    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44312/ - 200 - text/html;+charset=utf-8 129.3073ms
+DEBUG 2026-04-13 19:08:39,586 [21   ] Abp.AspNetCore.SignalR.Hubs.AbpCommonHub - A client is disconnected: hAfTAazj2GxymbdPplXJUA
+INFO  2026-04-13 19:08:39,588 [24   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint '/signalr'
+INFO  2026-04-13 19:08:39,588 [24   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/1.1 GET https://localhost:44312/signalr?id=KEsEVYogdzJUAXaX6prBzw - 101 - - 31004.5990ms
+INFO  2026-04-13 19:08:39,628 [5    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44312/_framework/aspnetcore-browser-refresh.js - - -
+INFO  2026-04-13 19:08:39,629 [24   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44312/AbpServiceProxies/GetAll?v=639117040583306800 - - -
+INFO  2026-04-13 19:08:39,630 [5    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44312/_framework/aspnetcore-browser-refresh.js - 200 14937 application/javascript;+charset=utf-8 1.9907ms
+INFO  2026-04-13 19:08:39,630 [24   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'Abp.AspNetCore.Mvc.Proxying.AbpServiceProxiesController.GetAll (Abp.AspNetCore)'
+INFO  2026-04-13 19:08:39,634 [21   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44312/AbpScripts/GetScripts?v=639117040583306800 - - -
+INFO  2026-04-13 19:08:39,635 [21   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'Abp.AspNetCore.Mvc.Controllers.AbpScriptsController.GetScripts (Abp.AspNetCore)'
+INFO  2026-04-13 19:08:39,640 [24   ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "GetAll", controller = "AbpServiceProxies", area = ""}. Executing controller action with signature Microsoft.AspNetCore.Mvc.ContentResult GetAll(Abp.AspNetCore.Mvc.Proxying.ApiProxyGenerationModel) on controller Abp.AspNetCore.Mvc.Proxying.AbpServiceProxiesController (Abp.AspNetCore).
+INFO  2026-04-13 19:08:39,642 [21   ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "GetScripts", controller = "AbpScripts", area = ""}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.ActionResult] GetScripts(System.String, Boolean) on controller Abp.AspNetCore.Mvc.Controllers.AbpScriptsController (Abp.AspNetCore).
+INFO  2026-04-13 19:08:39,646 [24   ] Mvc.Infrastructure.ContentResultExecutor - Executing ContentResult with HTTP Response ContentType of application/x-javascript
+INFO  2026-04-13 19:08:39,649 [24   ] c.Infrastructure.ControllerActionInvoker - Executed action Abp.AspNetCore.Mvc.Proxying.AbpServiceProxiesController.GetAll (Abp.AspNetCore) in 7.4574ms
+INFO  2026-04-13 19:08:39,649 [24   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'Abp.AspNetCore.Mvc.Proxying.AbpServiceProxiesController.GetAll (Abp.AspNetCore)'
+INFO  2026-04-13 19:08:39,649 [24   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44312/AbpServiceProxies/GetAll?v=639117040583306800 - 200 13886 application/x-javascript 21.5585ms
+INFO  2026-04-13 19:08:39,654 [24   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44312/_vs/browserLink - - -
+INFO  2026-04-13 19:08:39,679 [5    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44312/_vs/browserLink - 200 - text/javascript;+charset=UTF-8 25.5184ms
+INFO  2026-04-13 19:08:39,684 [21   ] Mvc.Infrastructure.ContentResultExecutor - Executing ContentResult with HTTP Response ContentType of application/x-javascript; charset=utf-8
+INFO  2026-04-13 19:08:39,687 [21   ] c.Infrastructure.ControllerActionInvoker - Executed action Abp.AspNetCore.Mvc.Controllers.AbpScriptsController.GetScripts (Abp.AspNetCore) in 44.6435ms
+INFO  2026-04-13 19:08:39,688 [21   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'Abp.AspNetCore.Mvc.Controllers.AbpScriptsController.GetScripts (Abp.AspNetCore)'
+INFO  2026-04-13 19:08:39,690 [21   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44312/AbpScripts/GetScripts?v=639117040583306800 - 200 22015 application/x-javascript;+charset=utf-8 55.5457ms
+INFO  2026-04-13 19:08:39,756 [21   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 POST https://localhost:44312/signalr/negotiate?negotiateVersion=1 - - 0
+INFO  2026-04-13 19:08:39,757 [21   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint '/signalr/negotiate'
+INFO  2026-04-13 19:08:39,758 [21   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint '/signalr/negotiate'
+INFO  2026-04-13 19:08:39,759 [21   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 POST https://localhost:44312/signalr/negotiate?negotiateVersion=1 - 200 316 application/json 3.5344ms
+INFO  2026-04-13 19:08:39,769 [21   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44312/BulkEmail/GetAll - - -
+INFO  2026-04-13 19:08:39,772 [21   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'AutoMail.Web.Controllers.BulkEmailController.GetAll (AutoMail.Web.Mvc)'
+INFO  2026-04-13 19:08:39,780 [21   ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "GetAll", controller = "BulkEmail", area = ""}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.JsonResult] GetAll() on controller AutoMail.Web.Controllers.BulkEmailController (AutoMail.Web.Mvc).
+INFO  2026-04-13 19:08:39,863 [21   ] rastructure.SystemTextJsonResultExecutor - Executing JsonResult, writing value of type 'Abp.Web.Models.AjaxResponse'.
+INFO  2026-04-13 19:08:39,864 [21   ] c.Infrastructure.ControllerActionInvoker - Executed action AutoMail.Web.Controllers.BulkEmailController.GetAll (AutoMail.Web.Mvc) in 83.525ms
+INFO  2026-04-13 19:08:39,864 [21   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'AutoMail.Web.Controllers.BulkEmailController.GetAll (AutoMail.Web.Mvc)'
+INFO  2026-04-13 19:08:39,864 [21   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44312/BulkEmail/GetAll - 200 - application/json;+charset=utf-8 95.8721ms
+INFO  2026-04-13 19:08:40,758 [24   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/1.1 GET https://localhost:44312/signalr?id=BeHyOPEdEM5plKqq0jMVeQ - - -
+INFO  2026-04-13 19:08:40,760 [24   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint '/signalr'
+DEBUG 2026-04-13 19:08:43,400 [24   ] Abp.AspNetCore.SignalR.Hubs.AbpCommonHub - A client is connected: {"ConnectionId":"RN3nvlqZiJXzSJsoMfunpQ","IpAddress":"::1","TenantId":null,"UserId":null,"ConnectTime":"2026-04-13T19:08:43.4007057+03:00","Properties":{}}
+DEBUG 2026-04-13 19:08:43,488 [5    ] Abp.AspNetCore.SignalR.Hubs.AbpCommonHub - A client is registered: RN3nvlqZiJXzSJsoMfunpQ
+DEBUG 2026-04-13 19:09:56,222 [25   ] Abp.AspNetCore.SignalR.Hubs.AbpCommonHub - A client is disconnected: RN3nvlqZiJXzSJsoMfunpQ
+INFO  2026-04-13 19:09:56,224 [25   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint '/signalr'
+INFO  2026-04-13 19:09:56,224 [26   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/1.1 GET https://localhost:44312/signalr?id=BeHyOPEdEM5plKqq0jMVeQ - 101 - - 75465.7566ms
+INFO  2026-04-13 19:09:56,245 [26   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 POST https://localhost:44312/signalr/negotiate?negotiateVersion=1 - - 0
+INFO  2026-04-13 19:09:56,247 [26   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint '/signalr/negotiate'
+INFO  2026-04-13 19:09:56,249 [26   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint '/signalr/negotiate'
+INFO  2026-04-13 19:09:56,250 [26   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 POST https://localhost:44312/signalr/negotiate?negotiateVersion=1 - 200 316 application/json 4.7324ms
+INFO  2026-04-13 19:09:56,272 [26   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/1.1 GET https://localhost:44312/signalr?id=g_YHHOnOC9Fr3Jq4ppvz4w - - -
+INFO  2026-04-13 19:09:56,275 [26   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint '/signalr'
+DEBUG 2026-04-13 19:09:56,290 [24   ] Abp.AspNetCore.SignalR.Hubs.AbpCommonHub - A client is connected: {"ConnectionId":"dLwPOdHVEvhXlh90pB-wIg","IpAddress":"::1","TenantId":null,"UserId":null,"ConnectTime":"2026-04-13T19:09:56.290826+03:00","Properties":{}}
