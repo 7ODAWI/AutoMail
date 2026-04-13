@@ -1,0 +1,333 @@
+@{
+    ViewBag.Title = "Operation Detail";
+    Layout = "~/Views/Shared/Layout/_LayoutEmail.cshtml";
+    var operationId = (long)ViewBag.OperationId;
+}
+
+@section styles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
+    <style>
+        .badge-pending      { background: #6c757d; color: #fff; }
+        .badge-inprogress   { background: #007bff; color: #fff; }
+        .badge-completed    { background: #28a745; color: #fff; }
+        .badge-failed       { background: #dc3545; color: #fff; }
+        .badge-partiallysent { background: #ffc107; color: #212529; }
+        .badge-success-email { background: #28a745; color: #fff; }
+
+        .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-card .stat-label { font-size: .85rem; color: #888; }
+
+        #page-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.35);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        #page-overlay.show { display: flex; }
+        .spinner-border-lg { width: 3.5rem; height: 3.5rem; border-width: .4em; }
+
+        .email-table td { font-size: .9rem; }
+        .body-preview { max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; padding: 12px; border-radius: 4px; background: #f8f9fa; }
+    </style>
+}
+
+<div id="page-overlay">
+    <div class="spinner-border text-light spinner-border-lg" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
+</div>
+
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1 class="m-0 text-dark">
+                    <i class="fas fa-info-circle text-primary"></i> Operation #<span id="op-id">@operationId</span>
+                </h1>
+            </div>
+            <div class="col-sm-6 text-right">
+                <a href="@Url.Action("Index", "BulkEmail")" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Operations
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="__AntiForgeryForm" style="display:none">@Html.AntiForgeryToken()</form>
+
+<section class="content">
+<div class="container-fluid">
+
+    <!-- Summary Card -->
+    <div class="card card-primary card-outline">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-chart-bar mr-1"></i> Summary</h3>
+            <div class="card-tools">
+                <span class="badge px-3 py-2" id="op-status-badge" style="font-size:.9rem">Loading...</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <strong>Subject:</strong> <span id="op-subject" class="ml-1">—</span>
+                </div>
+                <div class="col-md-4 text-md-right text-muted">
+                    <small>Created: <span id="op-created">—</span></small>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-12">
+                    <strong>Body:</strong>
+                    <div class="body-preview mt-1" id="op-body">—</div>
+                </div>
+            </div>
+            <div class="row text-center">
+                <div class="col-md-3 col-6">
+                    <div class="stat-card">
+                        <span class="stat-value text-primary" id="stat-total">-</span>
+                        <span class="stat-label d-block">Total</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-card">
+                        <span class="stat-value text-success" id="stat-sent">-</span>
+                        <span class="stat-label d-block">Sent</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-card">
+                        <span class="stat-value text-danger" id="stat-failed">-</span>
+                        <span class="stat-label d-block">Failed</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stat-card">
+                        <span class="stat-value text-secondary" id="stat-pending">-</span>
+                        <span class="stat-label d-block">Pending</span>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-3 text-muted text-center">
+                <div class="col-md-4"><small>Started: <span id="op-started">—</span></small></div>
+                <div class="col-md-4"><small>Completed: <span id="op-completed">—</span></small></div>
+                <div class="col-md-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card card-outline card-warning" id="actions-card" style="display:none">
+        <div class="card-body">
+            <div class="btn-group">
+                <a href="@Url.Action("DownloadFailed", "BulkEmail")?id=@operationId" class="btn btn-outline-danger" id="btn-download-failed">
+                    <i class="fas fa-file-csv mr-1"></i> Download Failed (CSV)
+                </a>
+                <button type="button" class="btn btn-outline-warning" id="btn-retry">
+                    <i class="fas fa-redo mr-1"></i> Retry Failed Emails
+                </button>
+            </div>
+            <small class="text-muted ml-2" id="retry-info"></small>
+        </div>
+    </div>
+
+    <!-- Email Details (expandable) -->
+    <div class="card card-outline card-secondary">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-list mr-1"></i> Email Details</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" id="btn-toggle-emails">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0" style="display: none;">
+            <table class="table table-sm table-hover email-table mb-0">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Sender Used</th>
+                        <th>Sent At</th>
+                        <th>Retries</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody id="emails-tbody">
+                    <tr><td colspan="6" class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</section>
+
+@section scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+    <script>
+    (function ($) {
+        'use strict';
+
+        var opId = @operationId;
+        var refreshTimer = null;
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return $('<span>').text(str).html();
+        }
+
+        function formatDate(d) {
+            if (!d) return '\u2014';
+            var dt = new Date(d);
+            return dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function statusBadge(status) {
+            var cls = 'badge-pending', label = status;
+            switch ((status || '').toLowerCase()) {
+                case 'pending':       cls = 'badge-pending'; break;
+                case 'inprogress':    cls = 'badge-inprogress'; label = 'In Progress'; break;
+                case 'completed':     cls = 'badge-completed'; break;
+                case 'failed':        cls = 'badge-failed'; break;
+                case 'partiallysent': cls = 'badge-partiallysent'; label = 'Partially Sent'; break;
+                case 'success':       cls = 'badge-success-email'; label = 'Sent'; break;
+            }
+            return '<span class="badge ' + cls + ' px-2 py-1">' + escapeHtml(label) + '</span>';
+        }
+
+        function toast(icon, title, text) {
+            Swal.fire({ icon: icon, title: title, text: text,
+                        toast: true, position: 'top-end',
+                        showConfirmButton: false, timer: 4000,
+                        timerProgressBar: true });
+        }
+
+        function alertError(msg) {
+            Swal.fire({ icon: 'error', title: 'Error', text: msg });
+        }
+
+        function getToken() {
+            return $('input[name="__RequestVerificationToken"]').val();
+        }
+
+        function loadDetail() {
+            $.ajax({
+                url: '@Url.Action("Detail", "BulkEmail")',
+                data: { id: opId },
+                type: 'GET',
+                success: function (resp) {
+                    var op = resp.result || resp;
+
+                    // Summary
+                    $('#op-subject').text(op.subject);
+                    $('#op-body').html(op.body);
+                    $('#op-created').text(formatDate(op.creationTime));
+                    $('#op-started').text(formatDate(op.startedAt));
+                    $('#op-completed').text(formatDate(op.completedAt));
+
+                    // Status badge
+                    $('#op-status-badge').html(statusBadge(op.statusText));
+
+                    // Stats
+                    $('#stat-total').text(op.totalEmails);
+                    $('#stat-sent').text(op.sentCount);
+                    $('#stat-failed').text(op.failedCount);
+                    $('#stat-pending').text(op.pendingCount);
+
+                    // Actions
+                    if (op.failedCount > 0) {
+                        $('#actions-card').show();
+                        if (op.retryableCount > 0) {
+                            $('#btn-retry').show();
+                            $('#retry-info').text(op.retryableCount + ' email(s) can be retried (under 3 attempts).');
+                        } else {
+                            $('#btn-retry').hide();
+                            $('#retry-info').text('All failed emails have reached the maximum retry limit.');
+                        }
+                    } else {
+                        $('#actions-card').hide();
+                    }
+
+                    // Emails table
+                    var tbody = $('#emails-tbody');
+                    tbody.empty();
+                    if (op.emails && op.emails.length) {
+                        op.emails.forEach(function (e) {
+                            tbody.append(
+                                '<tr>' +
+                                '<td>' + escapeHtml(e.email) + '</td>' +
+                                '<td>' + statusBadge(e.statusText) + '</td>' +
+                                '<td>' + escapeHtml(e.senderEmail || '\u2014') + '</td>' +
+                                '<td>' + formatDate(e.sentAt) + '</td>' +
+                                '<td>' + e.retryCount + '</td>' +
+                                '<td>' + escapeHtml(e.errorMessage || '\u2014') + '</td>' +
+                                '</tr>'
+                            );
+                        });
+                    } else {
+                        tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No emails in this operation.</td></tr>');
+                    }
+
+                    // Auto-refresh for in-progress
+                    var status = (op.statusText || '').toLowerCase();
+                    if (status === 'inprogress' || status === 'pending') {
+                        startAutoRefresh();
+                    } else {
+                        stopAutoRefresh();
+                    }
+                }
+            });
+        }
+
+        function startAutoRefresh() {
+            if (!refreshTimer) {
+                refreshTimer = setInterval(loadDetail, 5000);
+            }
+        }
+        function stopAutoRefresh() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+        }
+
+        // ── Retry ──
+        $('#btn-retry').on('click', function () {
+            Swal.fire({
+                title: 'Retry Failed Emails?',
+                html: 'This will re-queue all failed emails in this operation that haven\'t exceeded the max retry limit.',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#ffc107',
+                confirmButtonText: '<i class="fas fa-redo"></i> Yes, Retry',
+                cancelButtonText: 'Cancel'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+                $.ajax({
+                    url: '@Url.Action("Retry", "BulkEmail")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ id: opId }),
+                    headers: { 'RequestVerificationToken': getToken() },
+                    success: function (resp) {
+                        var msg = (resp.result && resp.result.message) ? resp.result.message : resp.message || 'Retry job queued.';
+                        toast('success', 'Retry Queued', msg);
+                        loadDetail();
+                    },
+                    error: function (xhr) {
+                        var msg = 'An unexpected error occurred.';
+                        try { var err = JSON.parse(xhr.responseText); msg = (err.error && err.error.message) ? err.error.message : msg; } catch (e) { }
+                        alertError(msg);
+                    }
+                });
+            });
+        });
+
+        // ── Init ──
+        loadDetail();
+
+    }(jQuery));
+    </script>
+}

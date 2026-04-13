@@ -1,15 +1,17 @@
 using Abp.Application.Services;
 using AutoMail.BulkEmail.Dto;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace AutoMail.BulkEmail
 {
-    public interface IBulkEmailAppService : IApplicationService
+    public interface IEmailOperationAppService : IApplicationService
     {
-        Task<UploadEmailsResult> UploadAndStoreEmailsAsync(UploadEmailsInput input);
-        Task EnqueueSendJobAsync(SendBulkEmailInput input);
-        Task<byte[]> ExportFailedEmailsCsvAsync();
-        Task RetryFailedEmailsAsync(SendBulkEmailInput input);
-        Task<BulkEmailDashboardDto> GetDashboardStatsAsync();
+        Task<OperationListDto> CreateOperationAsync(CreateOperationInput input);
+        Task<List<OperationListDto>> GetAllOperationsAsync();
+        Task<OperationDetailDto> GetOperationDetailAsync(long operationId);
+        Task RetryFailedEmailsAsync(long operationId);
+        Task<byte[]> ExportFailedEmailsCsvAsync(long operationId);
+        Task<byte[]> ExportDistinctEmailsExcelAsync();
     }
 }

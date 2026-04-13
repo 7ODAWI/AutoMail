@@ -1,4 +1,3 @@
-using Abp.AspNetCore.Mvc.Authorization;
 using AutoMail.BulkEmail;
 using AutoMail.BulkEmail.Dto;
 using AutoMail.Controllers;
@@ -9,11 +8,11 @@ namespace AutoMail.Web.Controllers
 {
     public class BulkEmailController : AutoMailControllerBase
     {
-        private readonly IBulkEmailAppService _bulkEmailAppService;
+        private readonly IEmailOperationAppService _operationAppService;
 
-        public BulkEmailController(IBulkEmailAppService bulkEmailAppService)
+        public BulkEmailController(IEmailOperationAppService operationAppService)
         {
-            _bulkEmailAppService = bulkEmailAppService;
+            _operationAppService = operationAppService;
         }
 
         public ActionResult Index()
@@ -21,39 +20,62 @@ namespace AutoMail.Web.Controllers
             return View();
         }
 
-        [HttpPost]
-        public async Task<JsonResult> Upload(UploadEmailsInput input)
+        public ActionResult Create()
         {
-            var result = await _bulkEmailAppService.UploadAndStoreEmailsAsync(input);
-            return Json(result);
+            return View();
         }
 
         [HttpPost]
-        public async Task<JsonResult> Send([FromBody] SendBulkEmailInput input)
+        public async Task<JsonResult> CreateOperation(CreateOperationInput input)
         {
-            await _bulkEmailAppService.EnqueueSendJobAsync(input);
-            return Json(new { message = "Email job has been queued successfully." });
-        }
-
-        [HttpGet]
-        public async Task<JsonResult> Dashboard()
-        {
-            var result = await _bulkEmailAppService.GetDashboardStatsAsync();
+            var result = await _operationAppService.CreateOperationAsync(input);
             return Json(result);
         }
 
         [HttpGet]
-        public async Task<IActionResult> DownloadFailedEmails()
+        public async Task<JsonResult> GetAll()
         {
-            var csvBytes = await _bulkEmailAppService.ExportFailedEmailsCsvAsync();
-            return File(csvBytes, "text/csv", "failed-emails.csv");
+            var result = await _operationAppService.GetAllOperationsAsync();
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> Detail(long id)
+        {
+            var result = await _operationAppService.GetOperationDetailAsync(id);
+            return Json(result);
+        }
+
+        public async Task<ActionResult> DetailPage(long id)
+        {
+            ViewBag.OperationId = id;
+            return View("Detail");
         }
 
         [HttpPost]
-        public async Task<JsonResult> RetryFailedEmails([FromBody] SendBulkEmailInput input)
+        public async Task<JsonResult> Retry([FromBody] RetryOperationInput input)
         {
-            await _bulkEmailAppService.RetryFailedEmailsAsync(input);
+            await _operationAppService.RetryFailedEmailsAsync(input.Id);
             return Json(new { message = "Retry job has been queued successfully." });
         }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadFailed(long id)
+        {
+            var csvBytes = await _operationAppService.ExportFailedEmailsCsvAsync(id);
+            return File(csvBytes, "text/csv", $"failed-emails-operation-{id}.csv");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportDistinctEmails()
+        {
+            var excelBytes = await _operationAppService.ExportDistinctEmailsExcelAsync();
+            return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "distinct-emails.xlsx");
+        }
+    }
+
+    public class RetryOperationInput
+    {
+        public long Id { get; set; }
     }
 }

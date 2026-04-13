@@ -1,0 +1,521 @@
+@{
+    ViewBag.Title = "New Email Operation";
+    Layout = "~/Views/Shared/Layout/_LayoutEmail.cshtml";
+}
+
+@section styles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
+    <style>
+        .drop-zone {
+            border: 2px dashed #1a7be4;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background .25s, border-color .25s;
+            background: #f8fbff;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            background: #e8f3ff;
+            border-color: #0d5bbf;
+        }
+        .drop-zone .dz-icon { font-size: 3rem; color: #1a7be4; }
+        .drop-zone .dz-label { font-size: 1rem; color: #555; margin-top: 8px; }
+        .drop-zone .dz-hint  { font-size: .85rem; color: #999; margin-top: 4px; }
+
+        #page-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.35);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        #page-overlay.show { display: flex; }
+        .spinner-border-lg { width: 3.5rem; height: 3.5rem; border-width: .4em; }
+
+        .sender-badge-active   { background: #28a745; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: .8rem; }
+        .sender-badge-inactive { background: #dc3545; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: .8rem; }
+    </style>
+}
+
+<div id="page-overlay">
+    <div class="spinner-border text-light spinner-border-lg" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
+</div>
+
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1 class="m-0 text-dark">
+                    <i class="fas fa-plus-circle text-primary"></i> New Email Operation
+                </h1>
+            </div>
+            <div class="col-sm-6 text-right">
+                <a href="@Url.Action("Index", "BulkEmail")" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Operations
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="__AntiForgeryForm" style="display:none">@Html.AntiForgeryToken()</form>
+
+<section class="content">
+<div class="container-fluid">
+<div class="row justify-content-center">
+<div class="col-xl-8 col-lg-10 col-12">
+
+    <!-- ═══════════ Step 1 — Upload Recipients File ═══════════ -->
+    <div class="card card-primary card-outline">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-upload mr-1"></i> Step 1 — Upload Recipients File</h3>
+        </div>
+        <div class="card-body">
+            <div class="drop-zone" id="drop-zone">
+                <div class="dz-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <div class="dz-label">Drop your file here or <strong>click to browse</strong></div>
+                <div class="dz-hint">Supported formats: <strong>.xlsx</strong> and <strong>.csv</strong></div>
+                <input type="file" id="file-input" accept=".xlsx,.csv" style="display:none" />
+            </div>
+            <div id="file-name-display" class="mt-2 text-info font-weight-bold" style="display:none"></div>
+
+            <div class="form-group mt-3 mb-0">
+                <label for="email-column-index">
+                    Email Column Index
+                    <small class="text-muted">(0 = first column)</small>
+                </label>
+                <input type="number" class="form-control" id="email-column-index"
+                       value="0" min="0" max="99" style="max-width:160px" />
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ Step 2 — Compose Message ═══════════ -->
+    <div class="card card-success card-outline">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-envelope-open-text mr-1"></i> Step 2 — Compose Message</h3>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label for="email-subject">Subject <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="email-subject"
+                       placeholder="Enter email subject..." maxlength="500" />
+            </div>
+            <div class="form-group">
+                <label for="email-body">Body <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="email-body" rows="8"
+                          placeholder="Enter your email body here... HTML is supported."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ Step 3 — Email Senders ═══════════ -->
+    <div class="card card-secondary card-outline">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-server mr-1"></i> Step 3 — Email Senders</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-add-sender">
+                    <i class="fas fa-plus mr-1"></i> Add Sender
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm table-hover table-striped mb-0" id="senders-table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Display Name</th>
+                        <th>SMTP Host</th>
+                        <th>Daily Limit</th>
+                        <th>Status</th>
+                        <th style="width:120px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="senders-tbody">
+                    <tr><td colspan="6" class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin mr-1"></i> Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer text-muted" id="sender-summary"></div>
+    </div>
+
+    <!-- ═══════════ Submit ═══════════ -->
+    <div class="text-center mb-4">
+        <button type="button" id="btn-start" class="btn btn-success btn-lg" disabled>
+            <i class="fas fa-rocket mr-1"></i> Start Operation
+        </button>
+        <div class="mt-2">
+            <small class="text-muted">Sending is handled by a background job — you can close this page safely after starting.</small>
+        </div>
+    </div>
+
+</div>
+</div>
+</div>
+</section>
+
+<!-- ═══════════ Sender Add / Edit Modal ═══════════ -->
+<div class="modal fade" id="sender-modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modal-title">Add Email Sender</h5>
+                <button type="button" class="close text-white" data-bs-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="sender-id" value="" />
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Email (SMTP username) <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="sender-email" maxlength="256" placeholder="sender@gmail.com" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Password (App Password) <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="sender-password" maxlength="512" placeholder="App password" />
+                            <small class="text-muted" id="password-hint" style="display:none">Leave blank to keep existing password.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Display Name</label>
+                            <input type="text" class="form-control" id="sender-display-name" maxlength="128" placeholder="My Sender Name" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>SMTP Host</label>
+                            <input type="text" class="form-control" id="sender-smtp-host" maxlength="256" value="smtp.gmail.com" />
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>SMTP Port</label>
+                            <input type="number" class="form-control" id="sender-smtp-port" value="587" min="1" max="65535" />
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Enable SSL</label>
+                            <select class="form-control" id="sender-enable-ssl">
+                                <option value="true" selected>Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Daily Limit</label>
+                            <input type="number" class="form-control" id="sender-daily-limit" value="500" min="1" max="10000" />
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Delay (ms)</label>
+                            <input type="number" class="form-control" id="sender-delay" value="1000" min="0" max="60000" />
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="sender-active" checked />
+                        <label class="custom-control-label" for="sender-active">Active</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-save-sender"><i class="fas fa-save mr-1"></i> Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+    <script>
+    (function ($) {
+        'use strict';
+
+        var overlay    = $('#page-overlay');
+        var dropZone   = $('#drop-zone');
+        var fileInput  = $('#file-input');
+        var btnStart   = $('#btn-start');
+        var selectedFile = null;
+
+        var modalEl = document.getElementById('sender-modal');
+        var modal   = new bootstrap.Modal(modalEl);
+
+        function showLoading()  { overlay.addClass('show'); }
+        function hideLoading()  { overlay.removeClass('show'); }
+
+        function toast(icon, title, text) {
+            Swal.fire({ icon: icon, title: title, text: text,
+                        toast: true, position: 'top-end',
+                        showConfirmButton: false, timer: 4000,
+                        timerProgressBar: true });
+        }
+        function alertError(msg) {
+            Swal.fire({ icon: 'error', title: 'Error', text: msg });
+        }
+        function getToken() {
+            return $('input[name="__RequestVerificationToken"]').val();
+        }
+        function escapeHtml(str) {
+            if (!str) return '';
+            return $('<span>').text(str).html();
+        }
+
+        function updateStartButton() {
+            var hasFile    = !!selectedFile;
+            var hasSubject = $.trim($('#email-subject').val()).length > 0;
+            var hasBody    = $.trim($('#email-body').val()).length > 0;
+            btnStart.prop('disabled', !(hasFile && hasSubject && hasBody));
+        }
+
+        $('#email-subject, #email-body').on('input', updateStartButton);
+
+        // ── File drag-drop ──────────────────────────────────────────────
+        dropZone.on('click', function () { fileInput.trigger('click'); });
+        dropZone.on('dragover', function (e) { e.preventDefault(); dropZone.addClass('dragover'); })
+                .on('dragleave drop', function () { dropZone.removeClass('dragover'); });
+
+        dropZone.on('drop', function (e) {
+            e.preventDefault();
+            var files = e.originalEvent.dataTransfer.files;
+            if (files.length) { fileInput[0].files = files; onFileSelected(files[0]); }
+        });
+        fileInput.on('change', function () { if (this.files.length) onFileSelected(this.files[0]); });
+
+        function onFileSelected(file) {
+            var ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+            if (!['.xlsx', '.csv'].includes(ext)) {
+                alertError('Only .xlsx and .csv files are supported.');
+                fileInput.val('');
+                selectedFile = null;
+                updateStartButton();
+                return;
+            }
+            selectedFile = file;
+            $('#file-name-display').text('\uD83D\uDCCE ' + file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)').show();
+            updateStartButton();
+        }
+
+        // ── Sender management (inline) ──────────────────────────────────
+        function loadSenders() {
+            $.ajax({
+                url: '@Url.Action("GetAll", "EmailSender")',
+                type: 'GET',
+                success: function (resp) {
+                    var list = resp.result || resp;
+                    var tbody = $('#senders-tbody');
+                    tbody.empty();
+
+                    if (!list.length) {
+                        tbody.html('<tr><td colspan="6" class="text-center py-3 text-muted">No senders configured. Click "Add Sender" above.</td></tr>');
+                        $('#sender-summary').text('No active senders — you need at least one to start an operation.');
+                        return;
+                    }
+
+                    var activeCount = 0;
+                    var totalCapacity = 0;
+                    list.forEach(function (s) {
+                        if (s.isActive) { activeCount++; totalCapacity += s.dailyLimit; }
+                        var badge = s.isActive
+                            ? '<span class="sender-badge-active">Active</span>'
+                            : '<span class="sender-badge-inactive">Inactive</span>';
+                        tbody.append(
+                            '<tr>' +
+                            '<td>' + escapeHtml(s.email) + '</td>' +
+                            '<td>' + escapeHtml(s.displayName || '\u2014') + '</td>' +
+                            '<td>' + escapeHtml(s.smtpHost) + ':' + s.smtpPort + '</td>' +
+                            '<td>' + s.dailyLimit + '</td>' +
+                            '<td>' + badge + '</td>' +
+                            '<td>' +
+                                '<button class="btn btn-sm btn-outline-primary mr-1 btn-edit" data-id="' + s.id + '"><i class="fas fa-edit"></i></button>' +
+                                '<button class="btn btn-sm btn-outline-danger btn-delete" data-id="' + s.id + '" data-email="' + escapeHtml(s.email) + '"><i class="fas fa-trash"></i></button>' +
+                            '</td>' +
+                            '</tr>'
+                        );
+                    });
+                    $('#sender-summary').html('<i class="fas fa-info-circle mr-1"></i>' + activeCount + ' active sender(s), total daily capacity: ' + totalCapacity + ' emails');
+                }
+            });
+        }
+
+        // ── Add sender ──
+        $('#btn-add-sender').on('click', function () {
+            $('#modal-title').text('Add Email Sender');
+            $('#sender-id').val('');
+            $('#sender-email').val('');
+            $('#sender-password').val('').attr('placeholder', 'App password').prop('required', true);
+            $('#password-hint').hide();
+            $('#sender-display-name').val('');
+            $('#sender-smtp-host').val('smtp.gmail.com');
+            $('#sender-smtp-port').val(587);
+            $('#sender-enable-ssl').val('true');
+            $('#sender-daily-limit').val(500);
+            $('#sender-delay').val(1000);
+            $('#sender-active').prop('checked', true);
+            modal.show();
+        });
+
+        // ── Edit sender ──
+        $(document).on('click', '.btn-edit', function () {
+            var id = $(this).data('id');
+            $.ajax({
+                url: '@Url.Action("Get", "EmailSender")',
+                data: { id: id }, type: 'GET',
+                success: function (resp) {
+                    var s = resp.result || resp;
+                    $('#modal-title').text('Edit Email Sender');
+                    $('#sender-id').val(s.id);
+                    $('#sender-email').val(s.email);
+                    $('#sender-password').val('').attr('placeholder', 'Leave blank to keep existing').prop('required', false);
+                    $('#password-hint').show();
+                    $('#sender-display-name').val(s.displayName || '');
+                    $('#sender-smtp-host').val(s.smtpHost);
+                    $('#sender-smtp-port').val(s.smtpPort);
+                    $('#sender-enable-ssl').val(s.enableSsl ? 'true' : 'false');
+                    $('#sender-daily-limit').val(s.dailyLimit);
+                    $('#sender-delay').val(s.delayBetweenEmailsMs);
+                    $('#sender-active').prop('checked', s.isActive);
+                    modal.show();
+                },
+                error: function () { alertError('Failed to load sender details.'); }
+            });
+        });
+
+        // ── Save sender ──
+        $('#btn-save-sender').on('click', function () {
+            var id = $('#sender-id').val();
+            var isEdit = !!id;
+            var payload = {
+                email: $.trim($('#sender-email').val()),
+                password: $.trim($('#sender-password').val()),
+                displayName: $.trim($('#sender-display-name').val()),
+                smtpHost: $.trim($('#sender-smtp-host').val()),
+                smtpPort: parseInt($('#sender-smtp-port').val(), 10),
+                enableSsl: $('#sender-enable-ssl').val() === 'true',
+                isActive: $('#sender-active').is(':checked'),
+                dailyLimit: parseInt($('#sender-daily-limit').val(), 10),
+                delayBetweenEmailsMs: parseInt($('#sender-delay').val(), 10)
+            };
+            if (!payload.email) { alertError('Email is required.'); return; }
+            if (!isEdit && !payload.password) { alertError('Password is required for new senders.'); return; }
+            if (isEdit) payload.id = parseInt(id, 10);
+            var url = isEdit ? '@Url.Action("Update", "EmailSender")' : '@Url.Action("Create", "EmailSender")';
+            $.ajax({
+                url: url, type: 'POST', contentType: 'application/json',
+                data: JSON.stringify(payload),
+                headers: { 'RequestVerificationToken': getToken() },
+                success: function () {
+                    modal.hide();
+                    toast('success', 'Saved', 'Sender ' + (isEdit ? 'updated' : 'created') + ' successfully.');
+                    loadSenders();
+                },
+                error: function (xhr) {
+                    var msg = 'Failed to save sender.';
+                    try { var err = JSON.parse(xhr.responseText); msg = (err.error && err.error.message) ? err.error.message : msg; } catch (e) { }
+                    alertError(msg);
+                }
+            });
+        });
+
+        // ── Delete sender ──
+        $(document).on('click', '.btn-delete', function () {
+            var id = $(this).data('id');
+            var email = $(this).data('email');
+            Swal.fire({
+                title: 'Delete Sender?',
+                html: 'Are you sure you want to delete <strong>' + escapeHtml(email) + '</strong>?',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc3545', confirmButtonText: 'Yes, delete'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+                $.ajax({
+                    url: '@Url.Action("Delete", "EmailSender")', type: 'POST',
+                    contentType: 'application/json', data: JSON.stringify({ id: id }),
+                    headers: { 'RequestVerificationToken': getToken() },
+                    success: function () {
+                        toast('success', 'Deleted', 'Sender removed successfully.');
+                        loadSenders();
+                    },
+                    error: function () { alertError('Failed to delete sender.'); }
+                });
+            });
+        });
+
+        // ── Start Operation ─────────────────────────────────────────────
+        btnStart.on('click', function () {
+            if (!selectedFile) { alertError('Please select a file.'); return; }
+            var subject = $.trim($('#email-subject').val());
+            var body    = $.trim($('#email-body').val());
+            if (!subject) { alertError('Please enter a subject.'); $('#email-subject').focus(); return; }
+            if (!body)    { alertError('Please enter a body.'); $('#email-body').focus(); return; }
+
+            Swal.fire({
+                title: 'Start Operation?',
+                html: 'This will parse the uploaded file and queue a background sending job.<br><br>Continue?',
+                icon: 'question', showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                confirmButtonText: '<i class="fas fa-rocket"></i> Yes, Start!',
+                cancelButtonText: 'Cancel'
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+
+                showLoading();
+                var formData = new FormData();
+                formData.append('File', selectedFile);
+                formData.append('EmailColumnIndex', $('#email-column-index').val());
+                formData.append('Subject', subject);
+                formData.append('Body', body);
+
+                $.ajax({
+                    url: '@Url.Action("CreateOperation", "BulkEmail")',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    headers: { 'RequestVerificationToken': getToken() },
+                    success: function (resp) {
+                        hideLoading();
+                        var op = resp.result || resp;
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Operation Started!',
+                            html: 'Operation #' + op.id + ' has been created with <strong>' + op.totalEmails + '</strong> recipient(s).<br>Sending job is now queued.',
+                            confirmButtonColor: '#28a745'
+                        }).then(function () {
+                            window.location.href = '@Url.Action("Index", "BulkEmail")';
+                        });
+                    },
+                    error: function (xhr) {
+                        hideLoading();
+                        var msg = 'An unexpected error occurred.';
+                        try {
+                            var err = JSON.parse(xhr.responseText);
+                            msg = (err.error && err.error.message) ? err.error.message : msg;
+                        } catch (e) { }
+                        alertError(msg);
+                    }
+                });
+            });
+        });
+
+        // ── Init ──
+        loadSenders();
+
+    }(jQuery));
+    </script>
+}

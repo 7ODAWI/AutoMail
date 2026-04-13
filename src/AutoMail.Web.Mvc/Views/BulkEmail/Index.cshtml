@@ -1,47 +1,20 @@
 @{
-    ViewBag.Title = "Bulk Email Sender";
+    ViewBag.Title = "Email Operations";
     Layout = "~/Views/Shared/Layout/_LayoutEmail.cshtml";
 }
 
 @section styles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
     <style>
-        /* Upload drop zone */
-        .drop-zone {
-            border: 2px dashed #1a7be4;
-            border-radius: 8px;
-            padding: 40px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: background .25s, border-color .25s;
-            background: #f8fbff;
-        }
-        .drop-zone:hover, .drop-zone.dragover {
-            background: #e8f3ff;
-            border-color: #0d5bbf;
-        }
-        .drop-zone .dz-icon { font-size: 3rem; color: #1a7be4; }
-        .drop-zone .dz-label { font-size: 1rem; color: #555; margin-top: 8px; }
-        .drop-zone .dz-hint  { font-size: .85rem; color: #999; margin-top: 4px; }
+        .badge-pending      { background: #6c757d; color: #fff; }
+        .badge-inprogress   { background: #007bff; color: #fff; }
+        .badge-completed    { background: #28a745; color: #fff; }
+        .badge-failed       { background: #dc3545; color: #fff; }
+        .badge-partiallysent { background: #ffc107; color: #212529; }
 
-        /* Stats card */
-        #upload-stats { display: none; }
-        .stat-badge {
-            font-size: 1.5rem;
-            font-weight: 700;
-            display: block;
-        }
+        .ops-table th, .ops-table td { vertical-align: middle; }
+        .ops-table .subject-col { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* Send button pulse when ready */
-        #btn-send.pulse {
-            animation: pulse 1.5s infinite;
-        }
-        @@keyframes pulse {
-            0%   { box-shadow: 0 0 0 0 rgba(40,167,69,.6); }
-            70%  { box-shadow: 0 0 0 10px rgba(40,167,69,0); }
-            100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); }
-        }
-
-        /* Loading spinner overlay */
         #page-overlay {
             display: none;
             position: fixed; inset: 0;
@@ -52,26 +25,9 @@
         }
         #page-overlay.show { display: flex; }
         .spinner-border-lg { width: 3.5rem; height: 3.5rem; border-width: .4em; }
-
-        .readonly-input {
-            background: #f4f6f9;
-            cursor: not-allowed;
-        }
-
-        /* Dashboard stat cards */
-        .dashboard-stat .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            display: block;
-        }
-        .dashboard-stat .stat-label {
-            font-size: .85rem;
-            color: #888;
-        }
     </style>
 }
 
-<!-- Page loading overlay -->
 <div id="page-overlay">
     <div class="spinner-border text-light spinner-border-lg" role="status">
         <span class="sr-only">Loading...</span>
@@ -81,10 +37,15 @@
 <div class="content-header">
     <div class="container-fluid">
         <div class="row mb-2">
-            <div class="col-sm-12">
+            <div class="col-sm-6">
                 <h1 class="m-0 text-dark">
-                    <i class="fas fa-paper-plane text-primary"></i> Bulk Email Sender
+                    <i class="fas fa-paper-plane text-primary"></i> Email Operations
                 </h1>
+            </div>
+            <div class="col-sm-6 text-right">
+                <a href="@Url.Action("Create", "BulkEmail")" class="btn btn-primary">
+                    <i class="fas fa-plus mr-1"></i> New Operation
+                </a>
             </div>
         </div>
     </div>
@@ -92,463 +53,127 @@
 
 <section class="content">
 <div class="container-fluid">
-<div class="row justify-content-center">
-<div class="col-xl-8 col-lg-10 col-12">
-
-    <!-- ═══════════════════════════ Dashboard Stats ═══════════════════════ -->
-    <div class="row" id="dashboard-stats">
-        <div class="col-md-3 col-6">
-            <div class="small-box bg-info">
-                <div class="inner dashboard-stat">
-                    <span class="stat-value" id="stat-pending">-</span>
-                    <span class="stat-label">Pending</span>
-                </div>
-                <div class="icon"><i class="fas fa-clock"></i></div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="small-box bg-success">
-                <div class="inner dashboard-stat">
-                    <span class="stat-value" id="stat-sent-today">-</span>
-                    <span class="stat-label">Sent Today</span>
-                </div>
-                <div class="icon"><i class="fas fa-check-circle"></i></div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="small-box bg-warning">
-                <div class="inner dashboard-stat">
-                    <span class="stat-value" id="stat-failed-today">-</span>
-                    <span class="stat-label">Failed Today</span>
-                </div>
-                <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="small-box bg-danger">
-                <div class="inner dashboard-stat">
-                    <span class="stat-value" id="stat-perm-failed">-</span>
-                    <span class="stat-label">Permanently Failed</span>
-                </div>
-                <div class="icon"><i class="fas fa-times-circle"></i></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sender breakdown -->
-    <div class="card card-outline card-secondary collapsed-card" id="sender-breakdown-card">
-        <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-server mr-1"></i> Sender Breakdown</h3>
-            <div class="card-tools">
-                <a href="@Url.Action("Index", "EmailSender")" class="btn btn-tool btn-sm text-primary" title="Manage Senders">
-                    <i class="fas fa-cogs"></i> Manage Senders
-                </a>
-                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                    <i class="fas fa-plus"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body p-0" style="display: none;">
-            <table class="table table-sm table-striped mb-0" id="sender-breakdown-table">
-                <thead>
+    <div class="card">
+        <div class="card-body p-0">
+            <table class="table table-hover ops-table mb-0">
+                <thead class="thead-light">
                     <tr>
-                        <th>Sender</th>
-                        <th>Sent Today</th>
-                        <th>Remaining</th>
-                        <th>Daily Limit</th>
+                        <th>#</th>
+                        <th>Subject</th>
                         <th>Status</th>
+                        <th>Total</th>
+                        <th>Sent</th>
+                        <th>Failed</th>
+                        <th>Pending</th>
+                        <th>Created</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody id="ops-tbody">
+                    <tr id="loading-row">
+                        <td colspan="9" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </div>
-
-    <!-- ═══════════════════════════ STEP 1 — Upload File ═══════════════════ -->
-    <div class="card card-primary card-outline">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-upload mr-1"></i> Step 1 — Upload Recipients File
-            </h3>
-        </div>
-        <div class="card-body">
-            <form id="upload-form" enctype="multipart/form-data">
-                @Html.AntiForgeryToken()
-                <div class="drop-zone" id="drop-zone">
-                    <div class="dz-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                    <div class="dz-label">Drop your file here or <strong>click to browse</strong></div>
-                    <div class="dz-hint">Supported formats: <strong>.xlsx</strong> and <strong>.csv</strong></div>
-                    <input type="file" id="file-input" name="File" accept=".xlsx,.csv"
-                           style="display:none" />
-                </div>
-                <div id="file-name-display" class="mt-2 text-info font-weight-bold" style="display:none"></div>
-
-                <div class="form-group mt-3 mb-0">
-                    <label for="email-column-index">
-                        Email Column Index
-                        <small class="text-muted">(0 = first column)</small>
-                    </label>
-                    <input type="number" class="form-control" id="email-column-index"
-                           name="EmailColumnIndex" value="0" min="0" max="99" style="max-width:160px" />
-                </div>
-
-                <button type="button" id="btn-upload" class="btn btn-primary mt-3" disabled>
-                    <i class="fas fa-file-import mr-1"></i> Parse &amp; Store Emails
-                </button>
-            </form>
-
-            <!-- Upload result stats -->
-            <div id="upload-stats" class="row mt-4 text-center">
-                <div class="col-4">
-                    <div class="card bg-info">
-                        <div class="card-body py-2">
-                            <span class="stat-badge text-white" id="stat-parsed">0</span>
-                            <small class="text-white">Parsed</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="card bg-warning">
-                        <div class="card-body py-2">
-                            <span class="stat-badge text-white" id="stat-skipped">0</span>
-                            <small class="text-white">Skipped / Duplicates</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="card bg-success">
-                        <div class="card-body py-2">
-                            <span class="stat-badge text-white" id="stat-saved">0</span>
-                            <small class="text-white">Saved</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════ STEP 2 — Compose Email ════════════════ -->
-    <div class="card card-success card-outline" id="compose-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-envelope-open-text mr-1"></i> Step 2 — Compose &amp; Send
-            </h3>
-        </div>
-        <div class="card-body">
-            <div class="form-group">
-                <label for="email-subject">Subject <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="email-subject"
-                       placeholder="Enter email subject..." maxlength="500" />
-            </div>
-            <div class="form-group">
-                <label for="email-body">Body <span class="text-danger">*</span></label>
-                <textarea class="form-control" id="email-body" rows="8"
-                          placeholder="Enter your email body here... HTML is supported."></textarea>
-            </div>
-
-            <button type="button" id="btn-send" class="btn btn-success btn-lg" disabled>
-                <i class="fas fa-rocket mr-1"></i> Send Emails
-            </button>
-            <small class="text-muted ml-2">Sending is handled by a background job — you can close this page safely.</small>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════ Failed Emails ═════════════════════════ -->
-    <div class="card card-danger card-outline">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-exclamation-circle mr-1"></i> Failed Emails
-            </h3>
-        </div>
-        <div class="card-body">
-            <p class="text-muted mb-3">
-                Download a CSV of all permanently failed emails, or retry emails that haven't exceeded the max retry limit (3 attempts).
-            </p>
-            <div class="btn-group">
-                <a href="@Url.Action("DownloadFailedEmails", "BulkEmail")" class="btn btn-outline-danger" id="btn-download-failed">
-                    <i class="fas fa-file-csv mr-1"></i> Download Failed (CSV)
-                </a>
-                <button type="button" class="btn btn-outline-warning" id="btn-retry-failed">
-                    <i class="fas fa-redo mr-1"></i> Retry Failed Emails
-                </button>
-            </div>
-        </div>
-    </div>
-
-</div>
-</div>
 </div>
 </section>
 
 @section scripts {
-    <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
-
     <script>
     (function ($) {
         'use strict';
 
-        // ── helpers ─────────────────────────────────────────────────────────
-        var overlay    = $('#page-overlay');
-        var btnUpload  = $('#btn-upload');
-        var btnSend    = $('#btn-send');
-        var fileInput  = $('#file-input');
-        var dropZone   = $('#drop-zone');
+        var refreshTimer = null;
 
-        function showLoading()  { overlay.addClass('show'); }
-        function hideLoading()  { overlay.removeClass('show'); }
-
-        function toast(icon, title, text) {
-            Swal.fire({ icon: icon, title: title, text: text,
-                        toast: true, position: 'top-end',
-                        showConfirmButton: false, timer: 4000,
-                        timerProgressBar: true });
+        function escapeHtml(str) {
+            if (!str) return '';
+            return $('<span>').text(str).html();
         }
 
-        function alertError(msg) {
-            Swal.fire({ icon: 'error', title: 'Error', text: msg });
+        function statusBadge(status) {
+            var cls = 'badge-pending';
+            var label = status;
+            switch ((status || '').toLowerCase()) {
+                case 'pending':       cls = 'badge-pending'; break;
+                case 'inprogress':    cls = 'badge-inprogress'; label = 'In Progress'; break;
+                case 'completed':     cls = 'badge-completed'; break;
+                case 'failed':        cls = 'badge-failed'; break;
+                case 'partiallysent': cls = 'badge-partiallysent'; label = 'Partially Sent'; break;
+            }
+            return '<span class="badge ' + cls + ' px-2 py-1">' + escapeHtml(label) + '</span>';
         }
 
-        function getToken() {
-            return $('input[name="__RequestVerificationToken"]').val();
+        function formatDate(d) {
+            if (!d) return '—';
+            var dt = new Date(d);
+            return dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
-        // ── dashboard ────────────────────────────────────────────────────────
-        function loadDashboard() {
+        function loadOperations() {
             $.ajax({
-                url: '@Url.Action("Dashboard", "BulkEmail")',
+                url: '@Url.Action("GetAll", "BulkEmail")',
                 type: 'GET',
                 success: function (resp) {
-                    var d = resp.result || resp;
-                    $('#stat-pending').text(d.totalPending);
-                    $('#stat-sent-today').text(d.totalSentToday);
-                    $('#stat-failed-today').text(d.totalFailedToday);
-                    $('#stat-perm-failed').text(d.totalPermanentlyFailed);
-
-                    var tbody = $('#sender-breakdown-table tbody');
+                    var ops = resp.result || resp;
+                    var tbody = $('#ops-tbody');
                     tbody.empty();
-                    if (d.senderBreakdown && d.senderBreakdown.length) {
-                        $.each(d.senderBreakdown, function (_, s) {
-                            tbody.append(
-                                '<tr>' +
-                                '<td>' + $('<span>').text(s.displayName + ' (' + s.email + ')').html() + '</td>' +
-                                '<td>' + s.sentToday + '</td>' +
-                                '<td>' + s.remainingQuota + '</td>' +
-                                '<td>' + s.dailyLimit + '</td>' +
-                                '<td>' + (s.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-secondary">Inactive</span>') + '</td>' +
-                                '</tr>'
-                            );
-                        });
+
+                    if (!ops || !ops.length) {
+                        tbody.append('<tr><td colspan="9" class="text-center text-muted py-4">No operations yet. <a href="@Url.Action("Create", "BulkEmail")">Start a new one</a>.</td></tr>');
+                        stopAutoRefresh();
+                        return;
+                    }
+
+                    var hasInProgress = false;
+                    $.each(ops, function (i, op) {
+                        if ((op.statusText || '').toLowerCase() === 'inprogress') hasInProgress = true;
+                        var actions = '<a href="@Url.Action("DetailPage", "BulkEmail")?id=' + op.id + '" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye mr-1"></i>View</a>';
+                        if (op.failedCount > 0) {
+                            actions += ' <a href="@Url.Action("DownloadFailed", "BulkEmail")?id=' + op.id + '" class="btn btn-sm btn-outline-danger" title="Export failed emails"><i class="fas fa-file-csv"></i></a>';
+                        }
+                        tbody.append(
+                            '<tr>' +
+                            '<td>' + op.id + '</td>' +
+                            '<td class="subject-col" title="' + escapeHtml(op.subject) + '">' + escapeHtml(op.subject) + '</td>' +
+                            '<td>' + statusBadge(op.statusText) + '</td>' +
+                            '<td>' + op.totalEmails + '</td>' +
+                            '<td class="text-success font-weight-bold">' + op.sentCount + '</td>' +
+                            '<td class="text-danger font-weight-bold">' + op.failedCount + '</td>' +
+                            '<td>' + op.pendingCount + '</td>' +
+                            '<td>' + formatDate(op.creationTime) + '</td>' +
+                            '<td>' + actions + '</td>' +
+                            '</tr>'
+                        );
+                    });
+
+                    if (hasInProgress) {
+                        startAutoRefresh();
                     } else {
-                        tbody.append('<tr><td colspan="5" class="text-center text-muted">No senders configured. <a href="@Url.Action("Index", "EmailSender")">Add one now</a>.</td></tr>');
+                        stopAutoRefresh();
                     }
                 }
             });
         }
 
-        // ── file selection & drag-drop ───────────────────────────────────────
-        dropZone.on('click', function () { fileInput.trigger('click'); });
-
-        dropZone.on('dragover', function (e) {
-            e.preventDefault();
-            dropZone.addClass('dragover');
-        }).on('dragleave drop', function () {
-            dropZone.removeClass('dragover');
-        });
-
-        dropZone.on('drop', function (e) {
-            e.preventDefault();
-            var files = e.originalEvent.dataTransfer.files;
-            if (files.length) {
-                fileInput[0].files = files;
-                onFileSelected(files[0]);
+        function startAutoRefresh() {
+            if (!refreshTimer) {
+                refreshTimer = setInterval(loadOperations, 5000);
             }
-        });
-
-        fileInput.on('change', function () {
-            if (this.files.length) onFileSelected(this.files[0]);
-        });
-
-        function onFileSelected(file) {
-            var allowed = ['.xlsx', '.csv'];
-            var ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-            if (!allowed.includes(ext)) {
-                alertError('Only .xlsx and .csv files are supported.');
-                fileInput.val('');
-                return;
-            }
-            $('#file-name-display').text('📎 ' + file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)').show();
-            btnUpload.prop('disabled', false);
         }
 
-        // ── upload / parse ───────────────────────────────────────────────────
-        btnUpload.on('click', function () {
-            var file = fileInput[0].files[0];
-            if (!file) { alertError('Please select a file first.'); return; }
-
-            var formData = new FormData();
-            formData.append('File', file);
-            formData.append('EmailColumnIndex', $('#email-column-index').val());
-
-            showLoading();
-
-            $.ajax({
-                url: '@Url.Action("Upload", "BulkEmail")',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                headers: { 'RequestVerificationToken': getToken() },
-                success: function (resp) {
-                    hideLoading();
-                    // ABP wraps successful JSON in { result: ... }
-                    var data = resp.result || resp;
-                    $('#stat-parsed').text(data.parsedCount);
-                    $('#stat-skipped').text(data.skippedCount);
-                    $('#stat-saved').text(data.savedCount);
-                    $('#upload-stats').slideDown();
-
-                    if (data.savedCount > 0) {
-                        toast('success', 'Upload Successful',
-                              data.savedCount + ' new email(s) saved. ' +
-                              data.skippedCount + ' skipped.');
-                        btnSend.prop('disabled', false).addClass('pulse');
-                    } else {
-                        Swal.fire({
-                            icon: 'info',
-                            title: 'No New Emails',
-                            text: 'All ' + data.parsedCount + ' email(s) in the file already exist in the database.'
-                        });
-                    }
-                },
-                error: function (xhr) {
-                    hideLoading();
-                    var msg = 'An unexpected error occurred.';
-                    try {
-                        var err = JSON.parse(xhr.responseText);
-                        msg = (err.error && err.error.message) ? err.error.message : msg;
-                    } catch (e) { }
-                    alertError(msg);
-                }
-            });
-        });
-
-        // ── send ─────────────────────────────────────────────────────────────
-        btnSend.on('click', function () {
-            var subject = $.trim($('#email-subject').val());
-            var body    = $.trim($('#email-body').val());
-
-            if (!subject) {
-                alertError('Please enter an email subject.');
-                $('#email-subject').focus();
-                return;
+        function stopAutoRefresh() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
             }
-            if (!body) {
-                alertError('Please enter an email body.');
-                $('#email-body').focus();
-                return;
-            }
+        }
 
-            Swal.fire({
-                title: 'Confirm Send',
-                html: 'This will queue a background job to send emails to <strong>all unsent recipients</strong>.<br><br>Continue?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#28a745',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: '<i class="fas fa-rocket"></i> Yes, Send!',
-                cancelButtonText: 'Cancel'
-            }).then(function (result) {
-                if (!result.isConfirmed) return;
-
-                showLoading();
-
-                $.ajax({
-                    url: '@Url.Action("Send", "BulkEmail")',
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ subject: subject, body: body }),
-                    headers: { 'RequestVerificationToken': getToken() },
-                    success: function (resp) {
-                        hideLoading();
-                        var msg = (resp.result && resp.result.message) ? resp.result.message : resp.message || 'Job queued.';
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Job Queued!',
-                            text: msg,
-                            confirmButtonColor: '#28a745'
-                        });
-                        btnSend.prop('disabled', true).removeClass('pulse');
-                    },
-                    error: function (xhr) {
-                        hideLoading();
-                        var msg = 'An unexpected error occurred.';
-                        try {
-                            var err = JSON.parse(xhr.responseText);
-                            msg = (err.error && err.error.message) ? err.error.message : msg;
-                        } catch (e) { }
-                        alertError(msg);
-                    }
-                });
-            });
-        });
-
-        // ── retry failed ─────────────────────────────────────────────────────
-        $('#btn-retry-failed').on('click', function () {
-            var subject = $.trim($('#email-subject').val());
-            var body    = $.trim($('#email-body').val());
-
-            if (!subject) {
-                alertError('Please enter an email subject before retrying.');
-                $('#email-subject').focus();
-                return;
-            }
-            if (!body) {
-                alertError('Please enter an email body before retrying.');
-                $('#email-body').focus();
-                return;
-            }
-
-            Swal.fire({
-                title: 'Retry Failed Emails?',
-                html: 'This will re-queue all failed emails that haven\'t exceeded the max retry limit (3 attempts).',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#ffc107',
-                confirmButtonText: '<i class="fas fa-redo"></i> Yes, Retry',
-                cancelButtonText: 'Cancel'
-            }).then(function (result) {
-                if (!result.isConfirmed) return;
-
-                showLoading();
-
-                $.ajax({
-                    url: '@Url.Action("RetryFailedEmails", "BulkEmail")',
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ subject: subject, body: body }),
-                    headers: { 'RequestVerificationToken': getToken() },
-                    success: function (resp) {
-                        hideLoading();
-                        var msg = (resp.result && resp.result.message) ? resp.result.message : 'Retry job queued.';
-                        Swal.fire({ icon: 'success', title: 'Retry Queued', text: msg, confirmButtonColor: '#28a745' });
-                        loadDashboard();
-                    },
-                    error: function (xhr) {
-                        hideLoading();
-                        var msg = 'An unexpected error occurred.';
-                        try {
-                            var err = JSON.parse(xhr.responseText);
-                            msg = (err.error && err.error.message) ? err.error.message : msg;
-                        } catch (e) { }
-                        alertError(msg);
-                    }
-                });
-            });
-        });
-
-        loadDashboard();
+        loadOperations();
 
     }(jQuery));
     </script>

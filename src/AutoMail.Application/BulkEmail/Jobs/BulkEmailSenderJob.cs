@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using BulkEmailEntity = AutoMail.Project_Models.BulkEmail;
 using SmtpClient = MailKit.Net.Smtp.SmtpClient;
 
 namespace AutoMail.BulkEmail.Jobs
@@ -21,44 +20,58 @@ namespace AutoMail.BulkEmail.Jobs
         private const int BaseBackoffMs = 2000;
         private const int MaxBackoffMs = 30000;
 
-        private readonly IRepository<BulkEmailEntity, long> _emailRepository;
+        private readonly IRepository<EmailOperation, long> _operationRepository;
+        private readonly IRepository<OperationEmail, long> _operationEmailRepository;
         private readonly IRepository<EmailSender, int> _senderRepository;
-        private readonly IRepository<BulkEmailLog, long> _logRepository;
         private readonly IMailKitEmailDispatcher _dispatcher;
 
         public BulkEmailSenderJob(
-            IRepository<BulkEmailEntity, long> emailRepository,
+            IRepository<EmailOperation, long> operationRepository,
+            IRepository<OperationEmail, long> operationEmailRepository,
             IRepository<EmailSender, int> senderRepository,
-            IRepository<BulkEmailLog, long> logRepository,
             IMailKitEmailDispatcher dispatcher)
         {
-            _emailRepository = emailRepository;
+            _operationRepository = operationRepository;
+            _operationEmailRepository = operationEmailRepository;
             _senderRepository = senderRepository;
-            _logRepository = logRepository;
             _dispatcher = dispatcher;
         }
 
         [UnitOfWork]
         public override async Task ExecuteAsync(BulkEmailJobArgs args)
         {
+            // ── Load the operation ──
+            var operation = await _operationRepository.GetAsync(args.OperationId);
+            operation.Status = OperationStatus.InProgress;
+            operation.StartedAt = Clock.Now;
+            await _operationRepository.UpdateAsync(operation);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
             // ── 1. Load active senders and compute remaining daily quotas ──
             var senders = await _senderRepository.GetAll()
                 .Where(s => s.IsActive)
                 .ToListAsync();
 
             if (!senders.Any())
-                throw new InvalidOperationException("No active email senders configured. Add at least one active sender before sending.");
+            {
+                operation.Status = OperationStatus.Failed;
+                operation.CompletedAt = Clock.Now;
+                await _operationRepository.UpdateAsync(operation);
+                Logger.Error($"[BulkEmailSenderJob] Operation {args.OperationId}: No active email senders configured.");
+                return;
+            }
 
             var todayUtc = Clock.Now.Date;
             var activeSenders = new List<SenderQuota>();
 
             foreach (var sender in senders)
             {
-                var sentToday = await _logRepository.GetAll()
-                    .CountAsync(l => l.SenderId == sender.Id
-                                  && l.Status == SendStatus.Success
-                                  && l.SentTime.HasValue
-                                  && l.SentTime.Value >= todayUtc);
+                // Count sends across ALL operations today for this sender
+                var sentToday = await _operationEmailRepository.GetAll()
+                    .CountAsync(e => e.SenderId == sender.Id
+                                  && e.Status == SendStatus.Success
+                                  && e.SentAt.HasValue
+                                  && e.SentAt.Value >= todayUtc);
 
                 var remaining = Math.Max(0, sender.DailyLimit - sentToday);
                 if (remaining == 0)
@@ -88,13 +101,16 @@ namespace AutoMail.BulkEmail.Jobs
 
             if (!activeSenders.Any())
             {
-                Logger.Warn("[BulkEmailSenderJob] No senders available (all at daily limit or failed to connect). Aborting.");
+                operation.Status = OperationStatus.Failed;
+                operation.CompletedAt = Clock.Now;
+                await _operationRepository.UpdateAsync(operation);
+                Logger.Warn($"[BulkEmailSenderJob] Operation {args.OperationId}: No senders available. Aborting.");
                 return;
             }
 
-            Logger.Info($"[BulkEmailSenderJob] {activeSenders.Count} sender(s) ready. Subject: '{args.Subject}', IsRetry: {args.IsRetry}");
+            Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId}: {activeSenders.Count} sender(s) ready. Subject: '{operation.Subject}'");
 
-            // ── 2. Process emails ──
+            // ── 2. Process emails for this operation ──
             var roundRobinIndex = 0;
             var totalSent = 0;
             var totalFailed = 0;
@@ -105,7 +121,13 @@ namespace AutoMail.BulkEmail.Jobs
                 var page = 0;
                 while (true)
                 {
-                    var emails = await LoadEmailPageAsync(args.IsRetry, page, PageSize);
+                    var emails = await _operationEmailRepository.GetAll()
+                        .Where(e => e.OperationId == args.OperationId && e.Status == SendStatus.Pending)
+                        .OrderBy(e => e.Id)
+                        .Skip(page * PageSize)
+                        .Take(PageSize)
+                        .ToListAsync();
+
                     if (!emails.Any())
                         break;
 
@@ -132,42 +154,41 @@ namespace AutoMail.BulkEmail.Jobs
                         }
 
                         // ── Exponential backoff for retries ──
-                        if (args.IsRetry && email.RetryCount > 0)
+                        if (email.RetryCount > 0)
                         {
                             var backoffMs = Math.Min(BaseBackoffMs * (1 << (email.RetryCount - 1)), MaxBackoffMs);
                             await Task.Delay(backoffMs);
                         }
 
                         // ── Send ──
-                        var result = await _dispatcher.SendAsync(chosen.Client, chosen.Sender, email.Email, args.Subject, args.Body);
-
-                        // ── Create immutable log record ──
-                        await _logRepository.InsertAsync(new BulkEmailLog
-                        {
-                            BulkEmailId = email.Id,
-                            EmailAddress = email.Email,
-                            SenderId = chosen.Sender.Id,
-                            Status = result.Success ? SendStatus.Success : SendStatus.Failed,
-                            ErrorMessage = result.ErrorMessage,
-                            SentTime = Clock.Now,
-                            AttemptNumber = email.RetryCount + 1
-                        });
+                        var result = await _dispatcher.SendAsync(chosen.Client, chosen.Sender, email.Email, operation.Subject, operation.Body);
 
                         // ── Update email record ──
                         if (result.Success)
                         {
-                            email.IsSent = true;
+                            email.Status = SendStatus.Success;
+                            email.SentAt = Clock.Now;
+                            email.SenderId = chosen.Sender.Id;
                             totalSent++;
                             Logger.Debug($"[BulkEmailSenderJob] Sent to {email.Email} via {chosen.Sender.Email}");
                         }
                         else
                         {
                             email.RetryCount++;
-                            totalFailed++;
+                            email.ErrorMessage = result.ErrorMessage;
+                            email.SenderId = chosen.Sender.Id;
+
+                            if (email.RetryCount >= MaxRetries)
+                            {
+                                email.Status = SendStatus.Failed;
+                                totalFailed++;
+                            }
+                            // else stays Pending for retry in next pass
+
                             Logger.Warn($"[BulkEmailSenderJob] Failed {email.Email} via {chosen.Sender.Email}: {result.ErrorMessage}");
                         }
 
-                        await _emailRepository.UpdateAsync(email);
+                        await _operationEmailRepository.UpdateAsync(email);
 
                         // ── Quota management ──
                         chosen.Remaining--;
@@ -209,23 +230,39 @@ namespace AutoMail.BulkEmail.Jobs
                 }
             }
 
-            Logger.Info($"[BulkEmailSenderJob] Completed. Sent: {totalSent}, Failed: {totalFailed}.");
-        }
+            // ── 3. Update operation with final counts and status ──
+            // Recompute counts from the database to handle retries correctly
+            var sentCount = await _operationEmailRepository.GetAll()
+                .CountAsync(e => e.OperationId == args.OperationId && e.Status == SendStatus.Success);
+            var failedCount = await _operationEmailRepository.GetAll()
+                .CountAsync(e => e.OperationId == args.OperationId && e.Status == SendStatus.Failed);
+            var stillPending = await _operationEmailRepository.GetAll()
+                .CountAsync(e => e.OperationId == args.OperationId && e.Status == SendStatus.Pending);
 
-        private async Task<List<BulkEmailEntity>> LoadEmailPageAsync(bool isRetry, int page, int pageSize)
-        {
-            var query = _emailRepository.GetAll().Where(e => !e.IsSent);
+            operation.SentCount = sentCount;
+            operation.FailedCount = failedCount;
 
-            if (isRetry)
+            if (stillPending > 0)
             {
-                query = query.Where(e => e.RetryCount > 0 && e.RetryCount < MaxRetries);
+                operation.Status = OperationStatus.PartiallySent;
+            }
+            else if (failedCount > 0 && sentCount > 0)
+            {
+                operation.Status = OperationStatus.PartiallySent;
+            }
+            else if (failedCount > 0 && sentCount == 0)
+            {
+                operation.Status = OperationStatus.Failed;
+            }
+            else
+            {
+                operation.Status = OperationStatus.Completed;
             }
 
-            return await query
-                .OrderBy(e => e.Id)
-                .Skip(page * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+            operation.CompletedAt = Clock.Now;
+            await _operationRepository.UpdateAsync(operation);
+
+            Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId} finished. Sent: {totalSent}, Failed: {totalFailed}, StillPending: {stillPending}.");
         }
 
         private static async Task DisconnectSafely(SmtpClient client)

@@ -1,6 +1,5 @@
 using Abp.BackgroundJobs;
 using Abp.Domain.Repositories;
-using Abp.Timing;
 using Abp.UI;
 using AutoMail.BulkEmail.Dto;
 using AutoMail.BulkEmail.Jobs;
@@ -20,7 +19,7 @@ using System.Threading.Tasks;
 
 namespace AutoMail.BulkEmail
 {
-    public class BulkEmailAppService : AutoMailAppServiceBase, IBulkEmailAppService
+    public class EmailOperationAppService : AutoMailAppServiceBase, IEmailOperationAppService
     {
         private const int MaxRetries = 3;
         private static readonly string[] AllowedExtensions = { ".xlsx", ".csv" };
@@ -29,28 +28,28 @@ namespace AutoMail.BulkEmail
             @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        private readonly IRepository<Project_Models.BulkEmail, long> _emailRepository;
+        private readonly IRepository<EmailOperation, long> _operationRepository;
+        private readonly IRepository<OperationEmail, long> _operationEmailRepository;
         private readonly IRepository<EmailSender, int> _senderRepository;
-        private readonly IRepository<BulkEmailLog, long> _logRepository;
         private readonly IBackgroundJobManager _backgroundJobManager;
 
-        public BulkEmailAppService(
-            IRepository<Project_Models.BulkEmail, long> emailRepository,
+        public EmailOperationAppService(
+            IRepository<EmailOperation, long> operationRepository,
+            IRepository<OperationEmail, long> operationEmailRepository,
             IRepository<EmailSender, int> senderRepository,
-            IRepository<BulkEmailLog, long> logRepository,
             IBackgroundJobManager backgroundJobManager)
         {
-            _emailRepository = emailRepository;
+            _operationRepository = operationRepository;
+            _operationEmailRepository = operationEmailRepository;
             _senderRepository = senderRepository;
-            _logRepository = logRepository;
             _backgroundJobManager = backgroundJobManager;
         }
 
         // ------------------------------------------------------------------ //
-        //  Upload & Store
+        //  Create Operation (upload + compose + enqueue in one step)
         // ------------------------------------------------------------------ //
 
-        public async Task<UploadEmailsResult> UploadAndStoreEmailsAsync(UploadEmailsInput input)
+        public async Task<OperationListDto> CreateOperationAsync(CreateOperationInput input)
         {
             if (input.File == null || input.File.Length == 0)
                 throw new UserFriendlyException("Please select a valid file.");
@@ -59,11 +58,16 @@ namespace AutoMail.BulkEmail
             if (!AllowedExtensions.Contains(ext))
                 throw new UserFriendlyException("Only .xlsx and .csv files are supported.");
 
+            var hasActiveSenders = await _senderRepository.GetAll()
+                .AnyAsync(s => s.IsActive);
+
+            if (!hasActiveSenders)
+                throw new UserFriendlyException("No active email senders configured. Please add at least one sender before starting an operation.");
+
+            // Parse file
             IReadOnlyList<string> parsedEmails = ext == ".csv"
                 ? await ParseCsvAsync(input.File.OpenReadStream(), input.EmailColumnIndex)
                 : ParseExcel(input.File.OpenReadStream(), input.EmailColumnIndex);
-
-            var result = new UploadEmailsResult { ParsedCount = parsedEmails.Count };
 
             var validEmails = parsedEmails
                 .Select(e => e?.Trim().ToLowerInvariant())
@@ -71,98 +75,131 @@ namespace AutoMail.BulkEmail
                 .Distinct()
                 .ToList();
 
-            result.SkippedCount = result.ParsedCount - validEmails.Count;
-
             if (!validEmails.Any())
                 throw new UserFriendlyException("No valid email addresses were found in the uploaded file.");
 
-            var existingEmails = await _emailRepository
-                .GetAll()
-                .Where(e => validEmails.Contains(e.Email))
-                .Select(e => e.Email)
-                .ToListAsync();
-
-            var newEmails = validEmails
-                .Except(existingEmails, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            result.SkippedCount += existingEmails.Count;
-            result.SavedCount = newEmails.Count;
-
-            foreach (var email in newEmails)
+            // Create operation
+            var operation = new EmailOperation
             {
-                await _emailRepository.InsertAsync(new Project_Models.BulkEmail
+                Subject = input.Subject,
+                Body = input.Body,
+                Status = OperationStatus.Pending,
+                TotalEmails = validEmails.Count,
+                SentCount = 0,
+                FailedCount = 0
+            };
+
+            operation = await _operationRepository.InsertAsync(operation);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            // Bulk insert operation emails
+            foreach (var email in validEmails)
+            {
+                await _operationEmailRepository.InsertAsync(new OperationEmail
                 {
+                    OperationId = operation.Id,
                     Email = email,
-                    IsSent = false
+                    Status = SendStatus.Pending
                 });
             }
 
-            return result;
-        }
+            await CurrentUnitOfWork.SaveChangesAsync();
 
-        // ------------------------------------------------------------------ //
-        //  Enqueue Background Job
-        // ------------------------------------------------------------------ //
-
-        public async Task EnqueueSendJobAsync(SendBulkEmailInput input)
-        {
-            var hasActiveSenders = await _senderRepository.GetAll()
-                .AnyAsync(s => s.IsActive);
-
-            if (!hasActiveSenders)
-                throw new UserFriendlyException("No active email senders configured. Please add at least one sender before sending.");
-
-            var pendingCount = await _emailRepository.GetAll()
-                .CountAsync(e => !e.IsSent);
-
-            if (pendingCount == 0)
-                throw new UserFriendlyException("There are no pending emails to send. Please upload a file first.");
-
+            // Enqueue background job
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs
                 {
-                    Subject = input.Subject,
-                    Body = input.Body,
-                    IsRetry = false
+                    OperationId = operation.Id
                 });
+
+            return MapToListDto(operation);
         }
 
         // ------------------------------------------------------------------ //
-        //  Failed Emails — Export & Retry
+        //  List Operations
         // ------------------------------------------------------------------ //
 
-        public async Task<byte[]> ExportFailedEmailsCsvAsync()
+        public async Task<List<OperationListDto>> GetAllOperationsAsync()
         {
-            // Get the latest failed attempt per BulkEmail (group by BulkEmailId, take max AttemptNumber)
-            var failedLogs = await _logRepository.GetAll()
-                .Where(l => l.Status == SendStatus.Failed)
-                .GroupBy(l => l.BulkEmailId)
-                .Select(g => g.OrderByDescending(l => l.AttemptNumber).First())
+            var operations = await _operationRepository.GetAll()
+                .OrderByDescending(o => o.CreationTime)
                 .ToListAsync();
 
-            if (!failedLogs.Any())
-                throw new UserFriendlyException("No failed emails to export.");
-
-            var sb = new StringBuilder();
-            sb.AppendLine("Email,ErrorMessage,AttemptCount,LastAttemptTime");
-
-            foreach (var log in failedLogs)
-            {
-                var escapedError = (log.ErrorMessage ?? "").Replace("\"", "\"\"");
-                sb.AppendLine($"\"{log.EmailAddress}\",\"{escapedError}\",{log.AttemptNumber},{log.SentTime:yyyy-MM-dd HH:mm:ss}");
-            }
-
-            return Encoding.UTF8.GetBytes(sb.ToString());
+            return operations.Select(MapToListDto).ToList();
         }
 
-        public async Task RetryFailedEmailsAsync(SendBulkEmailInput input)
-        {
-            var hasRetryable = await _emailRepository.GetAll()
-                .AnyAsync(e => !e.IsSent && e.RetryCount > 0 && e.RetryCount < MaxRetries);
+        // ------------------------------------------------------------------ //
+        //  Operation Detail
+        // ------------------------------------------------------------------ //
 
-            if (!hasRetryable)
-                throw new UserFriendlyException("No retryable failed emails found. Emails may have exceeded the maximum retry count.");
+        public async Task<OperationDetailDto> GetOperationDetailAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            var emails = await _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId)
+                .OrderBy(e => e.Id)
+                .ToListAsync();
+
+            // Load sender info for sent/failed emails
+            var senderIds = emails
+                .Where(e => e.SenderId.HasValue)
+                .Select(e => e.SenderId.Value)
+                .Distinct()
+                .ToList();
+
+            var senders = senderIds.Any()
+                ? await _senderRepository.GetAll()
+                    .Where(s => senderIds.Contains(s.Id))
+                    .ToDictionaryAsync(s => s.Id, s => s.Email)
+                : new Dictionary<int, string>();
+
+            var retryableCount = emails.Count(e => e.Status == SendStatus.Failed && e.RetryCount < MaxRetries);
+
+            return new OperationDetailDto
+            {
+                Id = operation.Id,
+                Subject = operation.Subject,
+                Body = operation.Body,
+                StatusText = operation.Status.ToString(),
+                TotalEmails = operation.TotalEmails,
+                SentCount = operation.SentCount,
+                FailedCount = operation.FailedCount,
+                PendingCount = operation.TotalEmails - operation.SentCount - operation.FailedCount,
+                RetryableCount = retryableCount,
+                CreationTime = operation.CreationTime,
+                StartedAt = operation.StartedAt,
+                CompletedAt = operation.CompletedAt,
+                Emails = emails.Select(e => new OperationEmailDto
+                {
+                    Email = e.Email,
+                    StatusText = e.Status.ToString(),
+                    RetryCount = e.RetryCount,
+                    ErrorMessage = e.ErrorMessage,
+                    SentAt = e.SentAt,
+                    SenderEmail = e.SenderId.HasValue && senders.ContainsKey(e.SenderId.Value)
+                        ? senders[e.SenderId.Value]
+                        : null
+                }).ToList()
+            };
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Retry Failed Emails (scoped to an operation)
+        // ------------------------------------------------------------------ //
+
+        public async Task RetryFailedEmailsAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            var failedEmails = await _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId
+                         && e.Status == SendStatus.Failed
+                         && e.RetryCount < MaxRetries)
+                .ToListAsync();
+
+            if (!failedEmails.Any())
+                throw new UserFriendlyException("No retryable failed emails found for this operation.");
 
             var hasActiveSenders = await _senderRepository.GetAll()
                 .AnyAsync(s => s.IsActive);
@@ -170,79 +207,109 @@ namespace AutoMail.BulkEmail
             if (!hasActiveSenders)
                 throw new UserFriendlyException("No active email senders configured.");
 
+            // Reset failed emails back to Pending for re-processing
+            foreach (var email in failedEmails)
+            {
+                email.Status = SendStatus.Pending;
+                email.ErrorMessage = null;
+                await _operationEmailRepository.UpdateAsync(email);
+            }
+
+            // Update operation status
+            operation.Status = OperationStatus.Pending;
+            operation.CompletedAt = null;
+            operation.FailedCount = operation.FailedCount - failedEmails.Count;
+            await _operationRepository.UpdateAsync(operation);
+
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            // Enqueue job
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs
                 {
-                    Subject = input.Subject,
-                    Body = input.Body,
-                    IsRetry = true
+                    OperationId = operationId
                 });
         }
 
         // ------------------------------------------------------------------ //
-        //  Dashboard / Monitoring
+        //  Export Failed Emails CSV (scoped to an operation)
         // ------------------------------------------------------------------ //
 
-        public async Task<BulkEmailDashboardDto> GetDashboardStatsAsync()
+        public async Task<byte[]> ExportFailedEmailsCsvAsync(long operationId)
         {
-            var todayUtc = Clock.Now.Date;
+            var failedEmails = await _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId && e.Status == SendStatus.Failed)
+                .OrderBy(e => e.Id)
+                .ToListAsync();
 
-            var totalPending = await _emailRepository.GetAll()
-                .CountAsync(e => !e.IsSent && e.RetryCount < MaxRetries);
+            if (!failedEmails.Any())
+                throw new UserFriendlyException("No failed emails to export for this operation.");
 
-            var totalPermanentlyFailed = await _emailRepository.GetAll()
-                .CountAsync(e => !e.IsSent && e.RetryCount >= MaxRetries);
+            var sb = new StringBuilder();
+            sb.AppendLine("Email,ErrorMessage,RetryCount,LastAttemptTime");
 
-            var totalSentToday = await _logRepository.GetAll()
-                .CountAsync(l => l.Status == SendStatus.Success
-                              && l.SentTime.HasValue
-                              && l.SentTime.Value >= todayUtc);
-
-            var totalSentAllTime = await _logRepository.GetAll()
-                .CountAsync(l => l.Status == SendStatus.Success);
-
-            var totalFailedToday = await _logRepository.GetAll()
-                .CountAsync(l => l.Status == SendStatus.Failed
-                              && l.CreationTime >= todayUtc);
-
-            // Per-sender breakdown
-            var senders = await _senderRepository.GetAll().ToListAsync();
-            var senderBreakdown = new List<SenderStatsDto>();
-
-            foreach (var sender in senders)
+            foreach (var email in failedEmails)
             {
-                var sentToday = await _logRepository.GetAll()
-                    .CountAsync(l => l.SenderId == sender.Id
-                                  && l.Status == SendStatus.Success
-                                  && l.SentTime.HasValue
-                                  && l.SentTime.Value >= todayUtc);
-
-                senderBreakdown.Add(new SenderStatsDto
-                {
-                    SenderId = sender.Id,
-                    DisplayName = sender.DisplayName,
-                    Email = sender.Email,
-                    SentToday = sentToday,
-                    RemainingQuota = Math.Max(0, sender.DailyLimit - sentToday),
-                    DailyLimit = sender.DailyLimit,
-                    IsActive = sender.IsActive
-                });
+                var escapedError = (email.ErrorMessage ?? "").Replace("\"", "\"\"");
+                sb.AppendLine($"\"{email.Email}\",\"{escapedError}\",{email.RetryCount},{email.SentAt:yyyy-MM-dd HH:mm:ss}");
             }
 
-            return new BulkEmailDashboardDto
-            {
-                TotalPending = totalPending,
-                TotalSentToday = totalSentToday,
-                TotalSentAllTime = totalSentAllTime,
-                TotalFailedToday = totalFailedToday,
-                TotalPermanentlyFailed = totalPermanentlyFailed,
-                SenderBreakdown = senderBreakdown
-            };
+            return Encoding.UTF8.GetBytes(sb.ToString());
         }
 
         // ------------------------------------------------------------------ //
-        //  Private Parsers
+        //  Export Distinct Emails (Excel)
         // ------------------------------------------------------------------ //
+
+        public async Task<byte[]> ExportDistinctEmailsExcelAsync()
+        {
+            var distinctEmails = await _operationEmailRepository.GetAll()
+                .Select(e => e.Email)
+                .Distinct()
+                .OrderBy(e => e)
+                .ToListAsync();
+
+            if (!distinctEmails.Any())
+                throw new UserFriendlyException("No emails found to export.");
+
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Emails");
+
+            worksheet.Cell(1, 1).Value = "Email";
+            worksheet.Cell(1, 1).Style.Font.Bold = true;
+
+            for (int i = 0; i < distinctEmails.Count; i++)
+            {
+                worksheet.Cell(i + 2, 1).Value = distinctEmails[i];
+            }
+
+            worksheet.Column(1).AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Private Helpers
+        // ------------------------------------------------------------------ //
+
+        private static OperationListDto MapToListDto(EmailOperation op)
+        {
+            return new OperationListDto
+            {
+                Id = op.Id,
+                Subject = op.Subject,
+                StatusText = op.Status.ToString(),
+                TotalEmails = op.TotalEmails,
+                SentCount = op.SentCount,
+                FailedCount = op.FailedCount,
+                PendingCount = op.TotalEmails - op.SentCount - op.FailedCount,
+                CreationTime = op.CreationTime,
+                StartedAt = op.StartedAt,
+                CompletedAt = op.CompletedAt
+            };
+        }
 
         private static IReadOnlyList<string> ParseExcel(Stream stream, int columnIndex)
         {
