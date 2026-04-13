@@ -200,7 +200,7 @@
 
             <!-- Upload result stats -->
             <div id="upload-stats" class="row mt-4 text-center">
-                <div class="col-4">
+                <div class="col-3">
                     <div class="card bg-info">
                         <div class="card-body py-2">
                             <span class="stat-badge text-white" id="stat-parsed">0</span>
@@ -208,15 +208,23 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-4">
-                    <div class="card bg-warning">
+                <div class="col-3">
+                    <div class="card bg-danger">
                         <div class="card-body py-2">
-                            <span class="stat-badge text-white" id="stat-skipped">0</span>
-                            <small class="text-white">Skipped / Duplicates</small>
+                            <span class="stat-badge text-white" id="stat-invalid">0</span>
+                            <small class="text-white">Invalid Format</small>
                         </div>
                     </div>
                 </div>
-                <div class="col-4">
+                <div class="col-3">
+                    <div class="card bg-warning">
+                        <div class="card-body py-2">
+                            <span class="stat-badge text-white" id="stat-skipped">0</span>
+                            <small class="text-white">Duplicates / Existing</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-3">
                     <div class="card bg-success">
                         <div class="card-body py-2">
                             <span class="stat-badge text-white" id="stat-saved">0</span>
@@ -422,6 +430,7 @@
                     // ABP wraps successful JSON in { result: ... }
                     var data = resp.result || resp;
                     $('#stat-parsed').text(data.parsedCount);
+                    $('#stat-invalid').text(data.invalidCount);
                     $('#stat-skipped').text(data.skippedCount);
                     $('#stat-saved').text(data.savedCount);
                     $('#upload-stats').slideDown();
@@ -429,13 +438,15 @@
                     if (data.savedCount > 0) {
                         toast('success', 'Upload Successful',
                               data.savedCount + ' new email(s) saved. ' +
-                              data.skippedCount + ' skipped.');
+                              data.skippedCount + ' duplicate/existing skipped.');
                         btnSend.prop('disabled', false).addClass('pulse');
                     } else {
                         Swal.fire({
                             icon: 'info',
                             title: 'No New Emails',
-                            text: 'All ' + data.parsedCount + ' email(s) in the file already exist in the database.'
+                            text: 'No new email addresses were saved. ' +
+                                  (data.invalidCount > 0 ? data.invalidCount + ' had invalid format. ' : '') +
+                                  (data.skippedCount > 0 ? data.skippedCount + ' were duplicate or already exist in the database.' : '')
                         });
                     }
                 },

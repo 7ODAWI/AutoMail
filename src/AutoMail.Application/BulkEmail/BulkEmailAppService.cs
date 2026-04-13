@@ -68,14 +68,21 @@ namespace AutoMail.BulkEmail
 
             var result = new UploadEmailsResult { ParsedCount = parsedEmails.Count };
 
-            // --- Validate & de-duplicate within the file ---
-            var validEmails = parsedEmails
+            // --- Validate (collect valid-format emails, track invalid count) ---
+            var normalizedEmails = parsedEmails
                 .Select(e => e?.Trim().ToLowerInvariant())
-                .Where(e => !string.IsNullOrWhiteSpace(e) && EmailRegex.IsMatch(e))
-                .Distinct()
+                .Where(e => !string.IsNullOrWhiteSpace(e))
                 .ToList();
 
-            result.SkippedCount = result.ParsedCount - validEmails.Count;
+            var validFormatEmails = normalizedEmails
+                .Where(e => EmailRegex.IsMatch(e))
+                .ToList();
+
+            result.InvalidCount = result.ParsedCount - validFormatEmails.Count;
+
+            // --- De-duplicate within the file ---
+            var validEmails = validFormatEmails.Distinct().ToList();
+            result.SkippedCount = validFormatEmails.Count - validEmails.Count;
 
             if (!validEmails.Any())
                 throw new Abp.UI.UserFriendlyException("No valid email addresses were found in the uploaded file.");
