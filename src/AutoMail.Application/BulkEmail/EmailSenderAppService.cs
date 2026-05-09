@@ -92,6 +92,40 @@ namespace AutoMail.BulkEmail
         }
 
         public async Task<EmailSenderDto> UpdateAsync(UpdateEmailSenderInput input)
+        {
+            if (!EmailRegex.IsMatch(input.Email))
+                throw new UserFriendlyException("Please enter a valid email address.");
+
+            var sender = await _senderRepository.GetAsync(input.Id);
+
+            var normalizedEmail = input.Email.Trim().ToLowerInvariant();
+            if (sender.Email != normalizedEmail)
+            {
+                var duplicate = await _senderRepository.GetAll()
+                    .AnyAsync(s => s.Email == normalizedEmail && s.Id != input.Id);
+
+                if (duplicate)
+                    throw new UserFriendlyException($"A sender with email '{input.Email}' already exists.");
+            }
+
+            sender.Email = normalizedEmail;
+            sender.DisplayName = input.DisplayName?.Trim();
+            sender.SmtpHost = input.SmtpHost?.Trim() ?? "smtp.gmail.com";
+            sender.SmtpPort = input.SmtpPort;
+            sender.EnableSsl = input.EnableSsl;
+            sender.IsActive = input.IsActive;
+            sender.DailyLimit = input.DailyLimit;
+            sender.DelayBetweenEmailsMs = input.DelayBetweenEmailsMs;
+
+            if (!string.IsNullOrWhiteSpace(input.Password))
+            {
+                sender.Password = input.Password;
+            }
+
+            await _senderRepository.UpdateAsync(sender);
+
+            return MapToDto(sender);
+        }
         public async Task<List<string>> GetDistinctEmailsPAsync()
         {
            return await _senderRepository.GetAll()
