@@ -260,7 +260,21 @@ namespace AutoMail.BulkEmail
         // ------------------------------------------------------------------ //
         //  Export Distinct Emails (Excel)
         // ------------------------------------------------------------------ //
-
+        public async Task<List<string>> GetDistinctEmailsAsync()
+        {
+            return await _operationEmailRepository.GetAll()
+                .Select(e => e.Email)
+                .Distinct()
+                .OrderBy(e => e)
+                .ToListAsync();
+        }
+        public async Task<List<string>> GetEmailsAsync()
+        {
+            return await _operationEmailRepository.GetAll()
+                .Select(e => e.Email)
+                .OrderBy(e => e)
+                .ToListAsync();
+        }
         public async Task<byte[]> ExportDistinctEmailsExcelAsync()
         {
             var distinctEmails = await _operationEmailRepository.GetAll()

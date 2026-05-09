@@ -13,5 +13,7 @@ namespace AutoMail.BulkEmail
         Task RetryFailedEmailsAsync(long operationId);
         Task<byte[]> ExportFailedEmailsCsvAsync(long operationId);
         Task<byte[]> ExportDistinctEmailsExcelAsync();
+        Task<List<string>> GetDistinctEmailsAsync();
+        Task<List<string>> GetEmailsAsync();
     }
 }
