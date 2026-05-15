@@ -34,6 +34,8 @@ public sealed class OutputOptions
     public bool EnableSqlite { get; init; } = false;
     public string SqlitePath { get; init; } = "output/developers.db";
     public string InvalidEmailsCsvPath { get; init; } = "output/invalid_emails.csv";
+    public bool EnableSqlServer { get; init; } = false;
+    public string SqlServerConnectionString { get; init; } = string.Empty;
 }
 
 public sealed class ProxyOptions

@@ -1,0 +1,144 @@
+@page "/"
+@implements IDisposable
+@inject OperationManager Manager
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard — GitHub Email Scraper</PageTitle>
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0"><i class="bi bi-speedometer2 me-2 text-primary"></i>Operations</h1>
+    <a href="/operations/create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>New Operation
+    </a>
+</div>
+
+@if (!_ops.Any())
+{
+    <div class="card text-center py-5 border-2 border-dashed">
+        <div class="text-muted">
+            <i class="bi bi-inbox display-4 d-block mb-3 text-secondary"></i>
+            <p class="mb-1 fs-5">No operations yet</p>
+            <a href="/operations/create" class="btn btn-primary mt-2">
+                <i class="bi bi-plus-lg me-1"></i>Create your first operation
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var op in _ops)
+        {
+            <div class="col-12">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+
+                            <!-- Name + filters -->
+                            <div class="flex-grow-1 min-w-0">
+                                <h5 class="card-title mb-1 d-flex align-items-center gap-2">
+                                    <a href="/operations/@op.Id" class="text-decoration-none stretched-link-title">@op.Name</a>
+                                    <span class="badge @StatusClass(op.Status)">@op.Status</span>
+                                </h5>
+                                <div class="text-muted small d-flex flex-wrap gap-3">
+                                    @if (op.Filters.Keywords.Any())
+                                    {
+                                        <span><i class="bi bi-search me-1"></i>@string.Join(", ", op.Filters.Keywords)</span>
+                                    }
+                                    @if (op.Filters.Locations.Any())
+                                    {
+                                        <span><i class="bi bi-geo-alt me-1"></i>@string.Join(", ", op.Filters.Locations)</span>
+                                    }
+                                    @if (op.Filters.MinFollowers > 0)
+                                    {
+                                        <span><i class="bi bi-people me-1"></i>≥@op.Filters.MinFollowers followers</span>
+                                    }
+                                </div>
+                                @if (op.Status == OperationStatus.Running && !string.IsNullOrEmpty(op.CurrentUser))
+                                {
+                                    <div class="mt-1 small text-success">
+                                        <i class="bi bi-arrow-right-circle me-1"></i>
+                                        Processing <strong>@op.CurrentUser</strong>
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Stats + actions -->
+                            <div class="d-flex align-items-center gap-3 flex-shrink-0">
+                                <div class="text-center" style="min-width:60px">
+                                    <div class="fw-bold text-success fs-5">@op.EmailsFound</div>
+                                    <div class="text-muted" style="font-size:.7rem">EMAILS</div>
+                                </div>
+                                <div class="text-center" style="min-width:60px">
+                                    <div class="fw-bold fs-5">@op.ProfilesScanned</div>
+                                    <div class="text-muted" style="font-size:.7rem">SCANNED</div>
+                                </div>
+
+                                <div class="vr mx-1"></div>
+
+                                @if (op.Status == OperationStatus.Running)
+                                {
+                                    <button class="btn btn-sm btn-warning" @onclick="() => Stop(op.Id)" title="Stop">
+                                        <i class="bi bi-stop-fill"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="() => Start(op.Id)"
+                                            title="@(op.Status is OperationStatus.Idle ? "Start" : "Re-run")">
+                                        <i class="bi bi-play-fill"></i>
+                                    </button>
+                                }
+                                <a href="/operations/@op.Id" class="btn btn-sm btn-outline-secondary" title="Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(op.Id)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<ScrapingOperation> _ops = Array.Empty<ScrapingOperation>();
+    private System.Threading.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        _ops = Manager.GetAll();
+        Manager.StateChanged += OnStateChanged;
+        _timer = new System.Threading.Timer(_ => InvokeAsync(Refresh), null, 2000, 2000);
+    }
+
+    private void OnStateChanged() => InvokeAsync(Refresh);
+
+    private void Refresh()
+    {
+        _ops = Manager.GetAll();
+        StateHasChanged();
+    }
+
+    private void Start(Guid id)  { Manager.Start(id);  Refresh(); }
+    private void Stop(Guid id)   { Manager.Stop(id);   Refresh(); }
+    private void Delete(Guid id) { Manager.Delete(id); Refresh(); }
+
+    private static string StatusClass(OperationStatus s) => s switch
+    {
+        OperationStatus.Running   => "bg-success",
+        OperationStatus.Completed => "bg-primary",
+        OperationStatus.Failed    => "bg-danger",
+        OperationStatus.Cancelled => "bg-warning text-dark",
+        _                         => "bg-secondary"
+    };
+
+    public void Dispose()
+    {
+        Manager.StateChanged -= OnStateChanged;
+        _timer?.Dispose();
+    }
+}

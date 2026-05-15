@@ -1,0 +1,157 @@
+@page "/operations/create"
+@inject OperationManager Manager
+@inject NavigationManager Nav
+
+<PageTitle>New Operation — GitHub Email Scraper</PageTitle>
+
+<div class="row justify-content-center">
+<div class="col-lg-7 col-xl-6">
+
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="/" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h1 class="h3 mb-0">New Scraping Operation</h1>
+</div>
+
+<div class="card shadow-sm border-0">
+<div class="card-body p-4">
+<EditForm Model="_form" OnValidSubmit="Submit">
+    <DataAnnotationsValidator />
+
+    <!-- Operation name -->
+    <div class="mb-4">
+        <label class="form-label fw-semibold">Operation Name <span class="text-danger">*</span></label>
+        <InputText class="form-control" @bind-Value="_form.Name"
+                   placeholder="e.g. Canada Full Stack Engineers" />
+        <ValidationMessage For="() => _form.Name" class="text-danger small" />
+    </div>
+
+    <!-- Keywords -->
+    <div class="mb-4">
+        <label class="form-label fw-semibold">Keywords</label>
+        <div class="text-muted small mb-2">Search GitHub users whose bio/profile matches these terms.</div>
+        <div class="input-group mb-2">
+            <input class="form-control" @bind="_newKeyword" @bind:event="oninput"
+                   @onkeydown="OnKeywordKey" placeholder='e.g. "Full Stack"' />
+            <button type="button" class="btn btn-outline-secondary" @onclick="AddKeyword">
+                <i class="bi bi-plus-lg"></i> Add
+            </button>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var kw in _form.Keywords)
+            {
+                <span class="badge bg-primary d-flex align-items-center gap-1 py-2 px-3">
+                    @kw
+                    <button type="button" class="btn-close btn-close-white ms-1"
+                            style="font-size:.55rem" @onclick="() => _form.Keywords.Remove(kw)"></button>
+                </span>
+            }
+            @if (!_form.Keywords.Any())
+            {
+                <span class="text-muted small fst-italic">No keywords — will match all users</span>
+            }
+        </div>
+    </div>
+
+    <!-- Locations -->
+    <div class="mb-4">
+        <label class="form-label fw-semibold">Locations</label>
+        <div class="text-muted small mb-2">Filter by GitHub profile location.</div>
+        <div class="input-group mb-2">
+            <input class="form-control" @bind="_newLocation" @bind:event="oninput"
+                   @onkeydown="OnLocationKey" placeholder="e.g. Canada" />
+            <button type="button" class="btn btn-outline-secondary" @onclick="AddLocation">
+                <i class="bi bi-plus-lg"></i> Add
+            </button>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var loc in _form.Locations)
+            {
+                <span class="badge bg-info text-dark d-flex align-items-center gap-1 py-2 px-3">
+                    @loc
+                    <button type="button" class="btn-close ms-1"
+                            style="font-size:.55rem" @onclick="() => _form.Locations.Remove(loc)"></button>
+                </span>
+            }
+            @if (!_form.Locations.Any())
+            {
+                <span class="text-muted small fst-italic">No location filter</span>
+            }
+        </div>
+    </div>
+
+    <!-- Min Followers -->
+    <div class="mb-4">
+        <label class="form-label fw-semibold">Minimum Followers</label>
+        <InputNumber class="form-control" style="max-width:160px" @bind-Value="_form.MinFollowers" min="0" />
+        <div class="form-text">0 = include everyone regardless of follower count.</div>
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex gap-2 pt-2">
+        <button type="submit" class="btn btn-primary" @onclick='() => _startNow = true'>
+            <i class="bi bi-play-fill me-1"></i>Create &amp; Start
+        </button>
+        <button type="submit" class="btn btn-outline-primary" @onclick='() => _startNow = false'>
+            <i class="bi bi-save me-1"></i>Create Only
+        </button>
+        <a href="/" class="btn btn-outline-secondary ms-auto">Cancel</a>
+    </div>
+</EditForm>
+</div>
+</div>
+
+</div>
+</div>
+
+@code {
+    private readonly FormModel _form = new();
+    private string _newKeyword  = string.Empty;
+    private string _newLocation = string.Empty;
+    private bool   _startNow    = true;
+
+    private void AddKeyword()
+    {
+        var kw = _newKeyword.Trim();
+        if (!string.IsNullOrEmpty(kw) && !_form.Keywords.Contains(kw, StringComparer.OrdinalIgnoreCase))
+            _form.Keywords.Add(kw);
+        _newKeyword = string.Empty;
+    }
+
+    private void AddLocation()
+    {
+        var loc = _newLocation.Trim();
+        if (!string.IsNullOrEmpty(loc) && !_form.Locations.Contains(loc, StringComparer.OrdinalIgnoreCase))
+            _form.Locations.Add(loc);
+        _newLocation = string.Empty;
+    }
+
+    private void OnKeywordKey(KeyboardEventArgs e)  { if (e.Key == "Enter") AddKeyword(); }
+    private void OnLocationKey(KeyboardEventArgs e) { if (e.Key == "Enter") AddLocation(); }
+
+    private void Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_form.Name)) return;
+
+        var filters = new OperationFilters
+        {
+            Keywords     = new List<string>(_form.Keywords),
+            Locations    = new List<string>(_form.Locations),
+            MinFollowers = _form.MinFollowers
+        };
+        var op = Manager.Create(_form.Name.Trim(), filters);
+
+        if (_startNow)
+            Manager.Start(op.Id);
+
+        Nav.NavigateTo($"/operations/{op.Id}");
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Name { get; set; } = string.Empty;
+        public List<string> Keywords  { get; set; } = new();
+        public List<string> Locations { get; set; } = new();
+        public int MinFollowers       { get; set; } = 0;
+    }
+}

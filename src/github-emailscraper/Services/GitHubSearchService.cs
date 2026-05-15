@@ -110,25 +110,37 @@ public sealed class GitHubSearchService : IGitHubSearchService
     // Cartesian product: Keywords × Locations
     private IEnumerable<string> BuildQueries()
     {
-        var keywords = _settings.Search.Keywords;
-        var locations = _settings.Search.Locations;
+        var keywords = _settings.Search.Keywords ?? Array.Empty<string>();
+        var locations = _settings.Search.Locations ?? Array.Empty<string>();
 
-        if (keywords.Length == 0 || locations.Length == 0)
+        // If both are empty there's nothing to search
+        if (keywords.Length == 0 && locations.Length == 0)
         {
             _logger.LogWarning("No Keywords or Locations configured — nothing to search.");
             yield break;
         }
 
-        foreach (var keyword in keywords)
-            foreach (var location in locations)
-            {
-                var sb = new StringBuilder();
-                sb.Append('"').Append(keyword).Append('"');
-                sb.Append(" location:\"").Append(location).Append('"');
-                if (_settings.Search.MinFollowers > 0)
-                    sb.Append($" followers:>={_settings.Search.MinFollowers}");
-                yield return sb.ToString();
-            }
+        // Treat empty side as wildcard — build queries for the other side
+        var kws = keywords.Length == 0 ? new[] { string.Empty } : keywords;
+        var locs = locations.Length == 0 ? new[] { string.Empty } : locations;
+
+        foreach (var keyword in kws)
+        foreach (var location in locs)
+        {
+            var parts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+                parts.Add('"' + keyword + '"');
+
+            if (!string.IsNullOrWhiteSpace(location))
+                parts.Add("location:\"" + location + '"');
+
+            if (_settings.Search.MinFollowers > 0)
+                parts.Add($"followers:>={_settings.Search.MinFollowers}");
+
+            var query = string.Join(' ', parts);
+            yield return query;
+        }
     }
 
     private static string BuildSearchUrl(string query, int page) =>

@@ -1,0 +1,25 @@
+@inject NavigationManager Nav
+
+<nav class="d-flex flex-column bg-dark text-white sidebar">
+    <div class="sidebar-brand">
+        <a href="/" class="text-white text-decoration-none d-flex align-items-center gap-2">
+            <i class="bi bi-github fs-5"></i>
+            <span class="fw-semibold">Email Scraper</span>
+        </a>
+    </div>
+
+    <ul class="nav flex-column gap-1 flex-grow-1 px-2">
+        <li class="nav-item">
+            <NavLink class="nav-link sidebar-link" href="/" Match="NavLinkMatch.All">
+                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link sidebar-link" href="/operations/create">
+                <i class="bi bi-plus-circle me-2"></i>New Operation
+            </NavLink>
+        </li>
+    </ul>
+
+    <div class="px-3 pb-3 text-secondary" style="font-size:.75rem">v2.0 · Web UI</div>
+</nav>

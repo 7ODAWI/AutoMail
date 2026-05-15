@@ -36,10 +36,19 @@ public sealed class CsvWriterService : ICsvWriterService
 
         var isNewOrEmpty = !File.Exists(_csvPath) || new FileInfo(_csvPath).Length == 0;
 
-        _streamWriter = new StreamWriter(
+        // Open underlying FileStream with ReadWrite sharing so other readers (download, UI)
+        // can open the file while it's being written. Use FileMode.OpenOrCreate and
+        // FileAccess.Write to append safely.
+        var fileStream = new FileStream(
             _csvPath,
-            append: true,
-            Encoding.UTF8);
+            FileMode.OpenOrCreate,
+            FileAccess.Write,
+            FileShare.ReadWrite);
+
+        // Move to end for append
+        fileStream.Seek(0, SeekOrigin.End);
+
+        _streamWriter = new StreamWriter(fileStream, Encoding.UTF8) { AutoFlush = true };
 
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
