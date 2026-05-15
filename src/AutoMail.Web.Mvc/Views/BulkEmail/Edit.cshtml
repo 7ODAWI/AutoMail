@@ -1,0 +1,463 @@
+@{
+    ViewBag.Title = "Edit Operation";
+    Layout = "~/Views/Shared/Layout/_LayoutEmail.cshtml";
+    var operationId = (long)ViewBag.OperationId;
+}
+
+@section styles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.css" />
+    <style>
+        .drop-zone {
+            border: 2px dashed #6c757d;
+            border-radius: 8px;
+            padding: 28px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background .25s, border-color .25s;
+            background: #f8f9fa;
+        }
+        .drop-zone:hover, .drop-zone.dragover { background: #e9ecef; border-color: #495057; }
+        .drop-zone .dz-icon { font-size: 2.5rem; color: #6c757d; }
+        .drop-zone .dz-label { font-size: .95rem; color: #555; margin-top: 6px; }
+        .drop-zone .dz-hint  { font-size: .8rem; color: #999; margin-top: 3px; }
+
+        #page-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.35); z-index: 9999;
+            align-items: center; justify-content: center;
+        }
+        #page-overlay.show { display: flex; }
+        .spinner-border-lg { width: 3.5rem; height: 3.5rem; border-width: .4em; }
+    </style>
+}
+
+<div id="page-overlay">
+    <div class="spinner-border text-light spinner-border-lg" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
+</div>
+
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1 class="m-0 text-dark">
+                    <i class="fas fa-edit text-warning"></i> Edit Draft #<span id="op-id-label">@operationId</span>
+                </h1>
+            </div>
+            <div class="col-sm-6 text-right">
+                <a href="@Url.Action("Index", "BulkEmail")" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Operations
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="__AntiForgeryForm" style="display:none">@Html.AntiForgeryToken()</form>
+
+<section class="content">
+<div class="container-fluid">
+<div class="row justify-content-center">
+<div class="col-xl-8 col-lg-10 col-12">
+
+    <!-- ═══════════ Recipients ═══════════ -->
+    <div class="card card-primary card-outline">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-users mr-1"></i> Recipients</h3>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info mb-3" id="current-recipients-info">
+                <i class="fas fa-spinner fa-spin mr-1"></i> Loading...
+            </div>
+
+            <div class="border-top pt-3">
+                <p class="font-weight-bold mb-1">Replace Recipients <small class="text-muted font-weight-normal">(optional)</small></p>
+                <p class="text-muted small mb-2">Upload a new .xlsx or .csv file to replace all existing recipients. Leave empty to keep current ones.</p>
+                <div class="drop-zone" id="drop-zone">
+                    <div class="dz-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div class="dz-label">Drop file here or <strong>click to browse</strong></div>
+                    <div class="dz-hint">Supported: <strong>.xlsx</strong> and <strong>.csv</strong></div>
+                    <input type="file" id="file-input" accept=".xlsx,.csv" style="display:none" />
+                </div>
+                <div id="file-name-display" class="mt-2 text-info font-weight-bold" style="display:none"></div>
+                <div class="form-group mt-2 mb-0" id="col-index-row" style="display:none">
+                    <label>Email Column Index <small class="text-muted">(0 = first column)</small></label>
+                    <input type="number" class="form-control" id="email-column-index" value="0" min="0" max="99" style="max-width:160px" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ Compose Message ═══════════ -->
+    <div class="card card-success card-outline">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-envelope-open-text mr-1"></i> Compose Message</h3>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label>Subject <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="email-subject" maxlength="500" />
+            </div>
+            <div class="form-group mb-0">
+                <label>Body <span class="text-danger">*</span></label>
+                <div id="email-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ Email Templates ═══════════ -->
+    <div class="card card-info card-outline">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-copy mr-1"></i> Email Templates
+                <small class="text-muted ml-2" id="tpl-header-hint"></small>
+            </h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-sm btn-primary" id="btn-add-tpl">
+                    <i class="fas fa-plus mr-1"></i> Add Template
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div id="no-tpl-msg" class="text-center text-muted py-3">
+                <i class="fas fa-info-circle mr-1"></i>
+                No templates &mdash; the default subject &amp; body will be used for all emails.
+            </div>
+            <table class="table table-sm table-hover mb-0" id="tpl-table" style="display:none">
+                <thead class="thead-light">
+                    <tr>
+                        <th style="width:35px">#</th>
+                        <th>Name</th>
+                        <th>Subject</th>
+                        <th style="width:70px">Weight</th>
+                        <th style="width:70px">Chance</th>
+                        <th style="width:90px"></th>
+                    </tr>
+                </thead>
+                <tbody id="tpl-tbody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer text-muted small">
+            <i class="fas fa-random mr-1"></i> The sending job picks one template per email using weighted random selection.
+        </div>
+    </div>
+
+    <!-- ═══════════ Actions ═══════════ -->
+    <div class="text-center mb-4">
+        <button type="button" id="btn-save" class="btn btn-secondary btn-lg mr-2">
+            <i class="fas fa-save mr-1"></i> Save Changes
+        </button>
+        <button type="button" id="btn-save-start" class="btn btn-success btn-lg">
+            <i class="fas fa-rocket mr-1"></i> Save &amp; Start
+        </button>
+        <div class="mt-2">
+            <small class="text-muted">Only pending (draft) operations can be edited.</small>
+        </div>
+    </div>
+
+</div>
+</div>
+</div>
+</section>
+
+<!-- ═══════════ Template Add / Edit Modal ═══════════ -->
+<div class="modal fade" id="tpl-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info">
+                <h5 class="modal-title text-white" id="tpl-modal-title">Add Template</h5>
+                <button type="button" class="close text-white" data-bs-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="tpl-id">
+                <div class="form-group">
+                    <label>Name <small class="text-muted">(optional)</small></label>
+                    <input type="text" id="tpl-name" class="form-control" placeholder="e.g. Friendly tone, Follow-up A...">
+                </div>
+                <div class="form-group">
+                    <label>Subject <span class="text-danger">*</span></label>
+                    <input type="text" id="tpl-subject" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Body <span class="text-danger">*</span></label>
+                    <textarea id="tpl-body" class="form-control" rows="9"></textarea>
+                </div>
+                <div class="form-row align-items-center">
+                    <div class="col-auto">
+                        <label class="mb-0">Weight</label>
+                        <input type="number" id="tpl-weight" class="form-control" style="width:90px" value="1" min="1" max="100">
+                    </div>
+                    <div class="col text-muted small mt-3">Higher weight = selected more often. Equal weights = equal chance.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" id="btn-save-tpl">
+                    <i class="fas fa-save mr-1"></i> Save Template
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.js"></script>
+    <script>
+    (function ($) {
+        'use strict';
+
+        var opId         = @operationId;
+        var selectedFile = null;
+        var templateCache = [];
+
+        var tplModalEl = document.getElementById('tpl-modal');
+        var tplModal   = new bootstrap.Modal(tplModalEl);
+
+        function showLoading()  { $('#page-overlay').addClass('show'); }
+        function hideLoading()  { $('#page-overlay').removeClass('show'); }
+        function getToken()     { return $('input[name="__RequestVerificationToken"]').val(); }
+        function escapeHtml(s)  { return s ? $('<span>').text(s).html() : ''; }
+
+        function toast(icon, title, text) {
+            Swal.fire({ icon: icon, title: title, text: text,
+                        toast: true, position: 'top-end',
+                        showConfirmButton: false, timer: 3500, timerProgressBar: true });
+        }
+        function alertError(msg) { Swal.fire({ icon: 'error', title: 'Error', text: msg }); }
+
+        // ── Summernote ───────────────────────────────────────────────────── //
+
+        $('#email-body').summernote({
+            height: 250,
+            placeholder: 'Compose your email body here...',
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'strikethrough', 'clear']],
+                ['fontname', ['fontname']], ['fontsize', ['fontsize']], ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']], ['table', ['table']],
+                ['insert', ['link', 'picture', 'hr']], ['view', ['fullscreen', 'codeview', 'undo', 'redo']]
+            ]
+        });
+
+        // ── File drag-drop ───────────────────────────────────────────────── //
+
+        var dropZone  = $('#drop-zone');
+        var fileInput = $('#file-input');
+
+        $(document).on('dragover drop', function (e) { e.preventDefault(); });
+        fileInput.on('click', function (e) { e.stopPropagation(); });
+        dropZone.on('click', function () { fileInput.trigger('click'); });
+        dropZone.on('dragover', function (e) { e.preventDefault(); dropZone.addClass('dragover'); })
+                .on('dragleave drop', function () { dropZone.removeClass('dragover'); });
+        dropZone.on('drop', function (e) {
+            e.preventDefault();
+            var files = e.originalEvent.dataTransfer.files;
+            if (files.length) { fileInput[0].files = files; onFileSelected(files[0]); }
+        });
+        fileInput.on('change', function () { if (this.files.length) onFileSelected(this.files[0]); });
+
+        function onFileSelected(file) {
+            var ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+            if (!['.xlsx', '.csv'].includes(ext)) {
+                alertError('Only .xlsx and .csv files are supported.');
+                fileInput.val(''); selectedFile = null; return;
+            }
+            selectedFile = file;
+            $('#file-name-display').text('\uD83D\uDCCE ' + file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)').show();
+            $('#col-index-row').show();
+        }
+
+        // ── Load operation data ──────────────────────────────────────────── //
+
+        function loadData() {
+            $.ajax({
+                url: '@Url.Action("Detail", "BulkEmail")',
+                data: { id: opId }, type: 'GET',
+                success: function (resp) {
+                    var op = resp.result || resp;
+                    if ((op.statusText || '').toLowerCase() !== 'pending') {
+                        alertError('This operation is no longer a draft and cannot be edited.');
+                        setTimeout(function () {
+                            window.location.href = '@Url.Action("DetailPage", "BulkEmail")?id=' + opId;
+                        }, 2000);
+                        return;
+                    }
+                    $('#email-subject').val(op.subject || '');
+                    $('#email-body').summernote('code', op.body || '');
+                    $('#current-recipients-info').html(
+                        '<i class="fas fa-users mr-1"></i> Current recipients: <strong>' + op.totalEmails + '</strong> email(s). ' +
+                        'Upload a new file below to replace them.');
+                    templateCache = op.templates || [];
+                    renderTemplatesTable(templateCache);
+                },
+                error: function () { alertError('Failed to load operation data.'); }
+            });
+        }
+
+        // ── Templates ────────────────────────────────────────────────────── //
+
+        function renderTemplatesTable(templates) {
+            var $tbody = $('#tpl-tbody');
+            $tbody.empty();
+            if (!templates || !templates.length) {
+                $('#tpl-table').hide(); $('#no-tpl-msg').show(); $('#tpl-header-hint').text(''); return;
+            }
+            $('#no-tpl-msg').hide(); $('#tpl-table').show();
+            var totalW = templates.reduce(function (s, t) { return s + t.weight; }, 0);
+            templates.forEach(function (t, i) {
+                var chance  = totalW > 0 ? Math.round((t.weight / totalW) * 100) : 0;
+                var preview = (t.subject || '').length > 55 ? t.subject.substring(0, 52) + '...' : t.subject;
+                $tbody.append('<tr>' +
+                    '<td>' + (i + 1) + '</td>' +
+                    '<td>' + escapeHtml(t.name || '\u2014') + '</td>' +
+                    '<td title="' + escapeHtml(t.subject) + '">' + escapeHtml(preview) + '</td>' +
+                    '<td>' + t.weight + '</td>' +
+                    '<td><span class="badge badge-info px-2">' + chance + '%</span></td>' +
+                    '<td>' +
+                        '<button class="btn btn-xs btn-outline-secondary mr-1" onclick="openEditTpl(' + t.id + ')"><i class="fas fa-edit"></i></button>' +
+                        '<button class="btn btn-xs btn-outline-danger" onclick="deleteTpl(' + t.id + ')"><i class="fas fa-trash"></i></button>' +
+                    '</td></tr>');
+            });
+            $('#tpl-header-hint').text('(' + templates.length + ' template' + (templates.length > 1 ? 's' : '') + ')');
+        }
+
+        $('#btn-add-tpl').on('click', function () {
+            $('#tpl-id').val(''); $('#tpl-name').val(''); $('#tpl-subject').val(''); $('#tpl-body').val(''); $('#tpl-weight').val(1);
+            $('#tpl-modal-title').text('Add Template'); tplModal.show();
+        });
+
+        window.openEditTpl = function (id) {
+            var t = templateCache.find(function (x) { return x.id === id; });
+            if (!t) return;
+            $('#tpl-id').val(t.id); $('#tpl-name').val(t.name || ''); $('#tpl-subject').val(t.subject);
+            $('#tpl-body').val(t.body); $('#tpl-weight').val(t.weight);
+            $('#tpl-modal-title').text('Edit Template'); tplModal.show();
+        };
+
+        $('#btn-save-tpl').on('click', function () {
+            var id      = parseInt($('#tpl-id').val()) || 0;
+            var subject = $('#tpl-subject').val().trim();
+            var body    = $('#tpl-body').val().trim();
+            if (!subject) { alertError('Subject is required.'); return; }
+            if (!body)    { alertError('Body is required.'); return; }
+            var payload = id > 0
+                ? { id: id, name: $('#tpl-name').val().trim(), subject: subject, body: body, weight: parseInt($('#tpl-weight').val()) || 1 }
+                : { operationId: opId, name: $('#tpl-name').val().trim(), subject: subject, body: body, weight: parseInt($('#tpl-weight').val()) || 1 };
+            var url = id > 0 ? '@Url.Action("UpdateTemplate", "BulkEmail")' : '@Url.Action("AddTemplate", "BulkEmail")';
+            $('#btn-save-tpl').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+            $.ajax({
+                url: url, type: 'POST', contentType: 'application/json', data: JSON.stringify(payload),
+                headers: { 'RequestVerificationToken': getToken() },
+                success: function () { tplModal.hide(); toast('success', id > 0 ? 'Template updated' : 'Template added', ''); loadData(); },
+                error: function (xhr) {
+                    var msg = 'An error occurred.';
+                    try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
+                    alertError(msg);
+                },
+                complete: function () { $('#btn-save-tpl').prop('disabled', false).html('<i class="fas fa-save mr-1"></i> Save Template'); }
+            });
+        });
+
+        window.deleteTpl = function (id) {
+            Swal.fire({ title: 'Delete Template?', text: 'This template will be permanently removed.',
+                icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545',
+                confirmButtonText: '<i class="fas fa-trash"></i> Delete'
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
+                $.ajax({
+                    url: '@Url.Action("DeleteTemplate", "BulkEmail")', type: 'POST',
+                    contentType: 'application/json', data: JSON.stringify({ id: id }),
+                    headers: { 'RequestVerificationToken': getToken() },
+                    success: function () { toast('success', 'Deleted', 'Template removed.'); loadData(); },
+                    error: function (xhr) {
+                        var msg = 'An error occurred.';
+                        try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
+                        alertError(msg);
+                    }
+                });
+            });
+        };
+
+        // ── Save / Save & Start ──────────────────────────────────────────── //
+
+        function doSave(startAfter) {
+            var subject  = $.trim($('#email-subject').val());
+            var body     = $('#email-body').summernote('code');
+            var bodyText = $.trim($('<div>').html(body).text());
+            if (!subject)  { alertError('Subject is required.'); return; }
+            if (!bodyText) { alertError('Body is required.'); return; }
+
+            showLoading();
+            var fd = new FormData();
+            fd.append('Id', opId);
+            fd.append('Subject', subject);
+            fd.append('Body', body);
+            if (selectedFile) {
+                fd.append('File', selectedFile);
+                fd.append('EmailColumnIndex', $('#email-column-index').val() || '0');
+            }
+
+            $.ajax({
+                url: '@Url.Action("UpdateOperation", "BulkEmail")',
+                type: 'POST', data: fd, processData: false, contentType: false,
+                headers: { 'RequestVerificationToken': getToken() },
+                success: function () {
+                    if (!startAfter) {
+                        hideLoading();
+                        toast('success', 'Saved', 'Draft updated successfully.');
+                        selectedFile = null;
+                        $('#file-name-display').hide();
+                        $('#col-index-row').hide();
+                        loadData();
+                        return;
+                    }
+                    // Save & Start — now start the job
+                    $.ajax({
+                        url: '@Url.Action("Start", "BulkEmail")',
+                        type: 'POST', contentType: 'application/json',
+                        data: JSON.stringify({ id: opId }),
+                        headers: { 'RequestVerificationToken': getToken() },
+                        success: function () {
+                            hideLoading();
+                            Swal.fire({ icon: 'success', title: 'Operation Started!',
+                                html: 'Draft #' + opId + ' has been started. The sending job is now queued.',
+                                confirmButtonColor: '#28a745'
+                            }).then(function () { window.location.href = '@Url.Action("Index", "BulkEmail")'; });
+                        },
+                        error: function (xhr) {
+                            hideLoading();
+                            var msg = 'Saved but failed to start.';
+                            try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
+                            alertError(msg);
+                        }
+                    });
+                },
+                error: function (xhr) {
+                    hideLoading();
+                    var msg = 'Failed to save operation.';
+                    try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
+                    alertError(msg);
+                }
+            });
+        }
+
+        $('#btn-save').on('click', function () { doSave(false); });
+        $('#btn-save-start').on('click', function () {
+            Swal.fire({
+                title: 'Save & Start?',
+                text: 'The operation will be saved and the sending job will be queued immediately.',
+                icon: 'question', showCancelButton: true,
+                confirmButtonColor: '#28a745', confirmButtonText: '<i class="fas fa-rocket"></i> Save & Start'
+            }).then(function (r) { if (r.isConfirmed) doSave(true); });
+        });
+
+        // ── Init ─────────────────────────────────────────────────────────── //
+
+        loadData();
+
+    }(jQuery));
+    </script>
+}

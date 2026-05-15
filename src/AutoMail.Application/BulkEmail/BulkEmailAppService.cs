@@ -108,12 +108,15 @@ namespace AutoMail.BulkEmail
 
             await CurrentUnitOfWork.SaveChangesAsync();
 
-            // Enqueue background job
-            await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
-                new BulkEmailJobArgs
-                {
-                    OperationId = operation.Id
-                });
+            // Enqueue background job only when starting immediately
+            if (input.StartImmediately)
+            {
+                await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
+                    new BulkEmailJobArgs
+                    {
+                        OperationId = operation.Id
+                    });
+            }
 
             return MapToListDto(operation);
         }
@@ -380,6 +383,142 @@ namespace AutoMail.BulkEmail
 
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs { OperationId = operationId });
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Start Draft Operation
+        // ------------------------------------------------------------------ //
+
+        public async Task StartOperationAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            if (operation.Status != OperationStatus.Pending)
+                throw new UserFriendlyException("Only pending (draft) operations can be started.");
+
+            var hasActiveSenders = await _senderRepository.GetAll()
+                .AnyAsync(s => s.IsActive);
+            if (!hasActiveSenders)
+                throw new UserFriendlyException("No active email senders configured.");
+
+            var hasPendingEmails = await _operationEmailRepository.GetAll()
+                .AnyAsync(e => e.OperationId == operationId && e.Status == SendStatus.Pending);
+            if (!hasPendingEmails)
+                throw new UserFriendlyException("No pending emails found in this operation.");
+
+            await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
+                new BulkEmailJobArgs { OperationId = operationId });
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Update (Edit) Pending Operation
+        // ------------------------------------------------------------------ //
+
+        public async Task UpdateOperationAsync(UpdateOperationInput input)
+        {
+            var operation = await _operationRepository.GetAsync(input.Id);
+
+            if (operation.Status != OperationStatus.Pending)
+                throw new UserFriendlyException("Only pending (draft) operations can be edited.");
+
+            operation.Subject = input.Subject?.Trim();
+            operation.Body = input.Body;
+            await _operationRepository.UpdateAsync(operation);
+
+            if (input.File != null && input.File.Length > 0)
+            {
+                var ext = Path.GetExtension(input.File.FileName).ToLowerInvariant();
+                if (!AllowedExtensions.Contains(ext))
+                    throw new UserFriendlyException("Only .xlsx and .csv files are supported.");
+
+                // Replace existing pending emails
+                var existing = await _operationEmailRepository.GetAll()
+                    .Where(e => e.OperationId == input.Id)
+                    .ToListAsync();
+                foreach (var e in existing)
+                    await _operationEmailRepository.DeleteAsync(e.Id);
+
+                IReadOnlyList<string> parsed = ext == ".csv"
+                    ? await ParseCsvAsync(input.File.OpenReadStream(), input.EmailColumnIndex)
+                    : ParseExcel(input.File.OpenReadStream(), input.EmailColumnIndex);
+
+                var validEmails = parsed
+                    .Select(e => e?.Trim().ToLowerInvariant())
+                    .Where(e => !string.IsNullOrWhiteSpace(e) && EmailRegex.IsMatch(e))
+                    .Distinct()
+                    .ToList();
+
+                if (!validEmails.Any())
+                    throw new UserFriendlyException("No valid email addresses found in the uploaded file.");
+
+                foreach (var email in validEmails)
+                    await _operationEmailRepository.InsertAsync(new OperationEmail
+                    {
+                        OperationId = input.Id,
+                        Email = email,
+                        Status = SendStatus.Pending
+                    });
+
+                operation.TotalEmails = validEmails.Count;
+                operation.SentCount = 0;
+                operation.FailedCount = 0;
+                await _operationRepository.UpdateAsync(operation);
+            }
+
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Clone Operation (new draft copy)
+        // ------------------------------------------------------------------ //
+
+        public async Task<OperationListDto> CloneOperationAsync(long operationId)
+        {
+            var original = await _operationRepository.GetAsync(operationId);
+
+            var cloned = new EmailOperation
+            {
+                Subject = original.Subject,
+                Body = original.Body,
+                Status = OperationStatus.Pending,
+                TotalEmails = 0,
+                SentCount = 0,
+                FailedCount = 0
+            };
+            cloned = await _operationRepository.InsertAsync(cloned);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            // Copy all emails, reset to Pending
+            var emails = await _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId)
+                .ToListAsync();
+            foreach (var e in emails)
+                await _operationEmailRepository.InsertAsync(new OperationEmail
+                {
+                    OperationId = cloned.Id,
+                    Email = e.Email,
+                    Status = SendStatus.Pending
+                });
+
+            cloned.TotalEmails = emails.Count;
+            await _operationRepository.UpdateAsync(cloned);
+
+            // Copy templates
+            var templates = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == operationId)
+                .ToListAsync();
+            foreach (var t in templates)
+                await _templateRepository.InsertAsync(new EmailTemplate
+                {
+                    OperationId = cloned.Id,
+                    Name = t.Name,
+                    Subject = t.Subject,
+                    Body = t.Body,
+                    Weight = t.Weight
+                });
+
+            await CurrentUnitOfWork.SaveChangesAsync();
+            return MapToListDto(cloned);
         }
 
         // ------------------------------------------------------------------ //

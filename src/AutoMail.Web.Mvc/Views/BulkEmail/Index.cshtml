@@ -169,6 +169,11 @@
             if (st === 'paused' || st === 'cancelled' || st === 'partiallysent') {
                 html += '<button class="btn btn-sm btn-success mr-1 btn-reactivate" data-id="' + id + '" title="Reactivate"><i class="fas fa-play"></i></button>';
             }
+            if (st === 'pending') {
+                html += '<button class="btn btn-sm btn-success mr-1 btn-start-draft" data-id="' + id + '" title="Start"><i class="fas fa-rocket"></i></button>';
+                html += '<a href="@Url.Action("EditPage", "BulkEmail")?id=' + id + '" class="btn btn-sm btn-outline-info mr-1" title="Edit Draft"><i class="fas fa-edit"></i></a>';
+            }
+            html += '<button class="btn btn-sm btn-outline-secondary mr-1 btn-clone" data-id="' + id + '" title="Clone"><i class="fas fa-copy"></i></button>';
             if (op.failedCount > 0 && (st === 'failed' || st === 'partiallysent')) {
                 html += '<a href="@Url.Action("DetailPage", "BulkEmail")?id=' + id +
                         '" class="btn btn-sm btn-outline-warning" title="View to retry"><i class="fas fa-redo"></i></a>';
@@ -324,6 +329,45 @@
                     confirmButtonColor: '#28a745',
                     confirmButtonText: '<i class="fas fa-play"></i> Reactivate'
                 }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("Reactivate", "BulkEmail")', id, 'Reactivated'); });
+            });
+
+            $(document).off('click', '.btn-start-draft').on('click', '.btn-start-draft', function () {
+                var id = $(this).data('id');
+                Swal.fire({
+                    title: 'Start Draft Operation?',
+                    text: 'This will queue the background job and begin sending emails immediately.',
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonColor: '#28a745',
+                    confirmButtonText: '<i class="fas fa-rocket"></i> Start!'
+                }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("Start", "BulkEmail")', id, 'Started'); });
+            });
+
+            $(document).off('click', '.btn-clone').on('click', '.btn-clone', function () {
+                var id = $(this).data('id');
+                Swal.fire({
+                    title: 'Clone Operation?',
+                    text: 'Creates a new draft copy with the same recipients and templates.',
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonColor: '#17a2b8',
+                    confirmButtonText: '<i class="fas fa-copy"></i> Clone'
+                }).then(function (r) {
+                    if (!r.isConfirmed) return;
+                    $.ajax({
+                        url: '@Url.Action("CloneOperation", "BulkEmail")', type: 'POST',
+                        contentType: 'application/json', data: JSON.stringify({ id: id }),
+                        headers: { 'RequestVerificationToken': getToken() },
+                        success: function (resp) {
+                            var cloned = resp.result || resp;
+                            Swal.fire({ icon: 'success', title: 'Cloned!', text: 'New draft #' + cloned.id + ' created.', timer: 2000, showConfirmButton: false });
+                            setTimeout(loadOperations, 600);
+                        },
+                        error: function (xhr) {
+                            var msg = 'An error occurred.';
+                            try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
+                            Swal.fire({ icon: 'error', title: 'Error', text: msg });
+                        }
+                    });
+                });
             });
         }
 

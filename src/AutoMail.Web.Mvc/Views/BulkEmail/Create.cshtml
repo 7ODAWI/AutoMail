@@ -179,11 +179,14 @@
 
     <!-- ═══════════ Submit ═══════════ -->
     <div class="text-center mb-4">
+        <button type="button" id="btn-draft" class="btn btn-secondary btn-lg mr-2" disabled>
+            <i class="fas fa-save mr-1"></i> Save as Draft
+        </button>
         <button type="button" id="btn-start" class="btn btn-success btn-lg" disabled>
             <i class="fas fa-rocket mr-1"></i> Start Operation
         </button>
         <div class="mt-2">
-            <small class="text-muted">Sending is handled by a background job — you can close this page safely after starting.</small>
+            <small class="text-muted">Draft operations can be edited and started later from the Operations list.</small>
         </div>
     </div>
 
@@ -326,6 +329,7 @@
         var dropZone   = $('#drop-zone');
         var fileInput  = $('#file-input');
         var btnStart   = $('#btn-start');
+        var btnDraft   = $('#btn-draft');
         var selectedFile = null;
 
         var modalEl = document.getElementById('sender-modal');
@@ -381,7 +385,9 @@
             var hasSubject = $.trim($('#email-subject').val()).length > 0;
             var body       = getBodyHtml();
             var hasBody    = body && $.trim($('<div>').html(body).text()).length > 0;
-            btnStart.prop('disabled', !(hasFile && hasSubject && hasBody));
+            var ready = hasFile && hasSubject && hasBody;
+            btnStart.prop('disabled', !ready);
+            btnDraft.prop('disabled', !ready);
         }
 
         $('#email-subject').on('input', updateStartButton);
@@ -638,7 +644,7 @@
         });
 
         // ── Start Operation ─────────────────────────────────────────────
-        btnStart.on('click', function () {
+        function submitOperation(startImmediately) {
             if (!selectedFile) { alertError('Please select a file.'); return; }
             var subject = $.trim($('#email-subject').val());
             var body    = getBodyHtml();
@@ -646,13 +652,17 @@
             if (!subject) { alertError('Please enter a subject.'); $('#email-subject').focus(); return; }
             if (!bodyText) { alertError('Please enter a body.'); $('#email-body').summernote('focus'); return; }
 
+            var confirmTitle = startImmediately ? 'Start Operation?' : 'Save as Draft?';
+            var confirmHtml  = startImmediately
+                ? 'This will parse the uploaded file and queue a background sending job.<br><br>Continue?'
+                : 'The operation will be saved without starting. You can start it later from the Operations list.';
+            var confirmColor = startImmediately ? '#28a745' : '#6c757d';
+            var confirmText  = startImmediately ? '<i class="fas fa-rocket"></i> Yes, Start!' : '<i class="fas fa-save"></i> Save Draft';
+
             Swal.fire({
-                title: 'Start Operation?',
-                html: 'This will parse the uploaded file and queue a background sending job.<br><br>Continue?',
+                title: confirmTitle, html: confirmHtml,
                 icon: 'question', showCancelButton: true,
-                confirmButtonColor: '#28a745',
-                confirmButtonText: '<i class="fas fa-rocket"></i> Yes, Start!',
-                cancelButtonText: 'Cancel'
+                confirmButtonColor: confirmColor, confirmButtonText: confirmText, cancelButtonText: 'Cancel'
             }).then(function (result) {
                 if (!result.isConfirmed) return;
 
@@ -662,6 +672,7 @@
                 formData.append('EmailColumnIndex', $('#email-column-index').val());
                 formData.append('Subject', subject);
                 formData.append('Body', body);
+                formData.append('StartImmediately', startImmediately ? 'true' : 'false');
 
                 $.ajax({
                     url: '@Url.Action("CreateOperation", "BulkEmail")',
@@ -675,18 +686,16 @@
                         var op = resp.result || resp;
 
                         function showSuccess() {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Operation Started!',
-                                html: 'Operation #' + op.id + ' has been created with <strong>' + op.totalEmails + '</strong> recipient(s).<br>Sending job is now queued.',
-                                confirmButtonColor: '#28a745'
-                            }).then(function () {
-                                window.location.href = '@Url.Action("Index", "BulkEmail")';
-                            });
+                            var icon  = startImmediately ? 'success' : 'info';
+                            var title = startImmediately ? 'Operation Started!' : 'Draft Saved!';
+                            var html  = startImmediately
+                                ? 'Operation #' + op.id + ' has been created with <strong>' + op.totalEmails + '</strong> recipient(s).<br>Sending job is now queued.'
+                                : 'Draft #' + op.id + ' saved with <strong>' + op.totalEmails + '</strong> recipient(s). Start it anytime from the Operations list.';
+                            Swal.fire({ icon: icon, title: title, html: html, confirmButtonColor: '#28a745' })
+                                .then(function () { window.location.href = '@Url.Action("Index", "BulkEmail")'; });
                         }
 
                         if (!createTemplates.length) { showSuccess(); return; }
-
                         var tasks = createTemplates.map(function (t) {
                             return $.ajax({
                                 url: '@Url.Action("AddTemplate", "BulkEmail")',
@@ -700,15 +709,15 @@
                     error: function (xhr) {
                         hideLoading();
                         var msg = 'An unexpected error occurred.';
-                        try {
-                            var err = JSON.parse(xhr.responseText);
-                            msg = (err.error && err.error.message) ? err.error.message : msg;
-                        } catch (e) { }
+                        try { var err = JSON.parse(xhr.responseText); msg = (err.error && err.error.message) ? err.error.message : msg; } catch (e) { }
                         alertError(msg);
                     }
                 });
             });
-        });
+        }
+
+        btnStart.on('click', function () { submitOperation(true); });
+        btnDraft.on('click', function () { submitOperation(false); });
 
         // ── Init ──
         loadSenders();

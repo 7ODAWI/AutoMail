@@ -95,6 +95,33 @@ namespace AutoMail.Web.Controllers
         }
 
         [HttpPost]
+        public async Task<JsonResult> CloneOperation([FromBody] OperationControlInput input)
+        {
+            var result = await _operationAppService.CloneOperationAsync(input.Id);
+            return Json(result);
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> Start([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.StartOperationAsync(input.Id);
+            return Json(new { message = "Operation started." });
+        }
+
+        public ActionResult EditPage(long id)
+        {
+            ViewBag.OperationId = id;
+            return View("Edit");
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> UpdateOperation(UpdateOperationInput input)
+        {
+            await _operationAppService.UpdateOperationAsync(input);
+            return Json(new { message = "Operation updated successfully." });
+        }
+
+        [HttpPost]
         public async Task<JsonResult> AddTemplate([FromBody] CreateTemplateInput input)
         {
             var result = await _operationAppService.AddTemplateAsync(input);

@@ -16,5 +16,8 @@ namespace AutoMail.BulkEmail.Dto
 
         [Required]
         public string Body { get; set; }
+
+        /// <summary>When false, the operation is saved as a draft without starting the background job.</summary>
+        public bool StartImmediately { get; set; } = true;
     }
 }
