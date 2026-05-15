@@ -170,6 +170,7 @@ namespace AutoMail.BulkEmail
                 CreationTime = operation.CreationTime,
                 StartedAt = operation.StartedAt,
                 CompletedAt = operation.CompletedAt,
+                StopReason = operation.StopReason,
                 Emails = emails.Select(e => new OperationEmailDto
                 {
                     Email = e.Email,
@@ -305,6 +306,74 @@ namespace AutoMail.BulkEmail
         }
 
         // ------------------------------------------------------------------ //
+        //  Pause Operation
+        // ------------------------------------------------------------------ //
+
+        public async Task PauseOperationAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            if (operation.Status != OperationStatus.InProgress)
+                throw new UserFriendlyException("Only in-progress operations can be paused.");
+
+            operation.Status = OperationStatus.Paused;
+            await _operationRepository.UpdateAsync(operation);
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Stop Operation (Cancel)
+        // ------------------------------------------------------------------ //
+
+        public async Task StopOperationAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            if (operation.Status != OperationStatus.InProgress && operation.Status != OperationStatus.Paused)
+                throw new UserFriendlyException("Only in-progress or paused operations can be stopped.");
+
+            operation.Status = OperationStatus.Cancelled;
+            operation.CompletedAt = Abp.Timing.Clock.Now;
+            await _operationRepository.UpdateAsync(operation);
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Reactivate Operation (resume from Paused or Cancelled)
+        // ------------------------------------------------------------------ //
+
+        public async Task ReactivateOperationAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            if (operation.Status != OperationStatus.Paused
+                && operation.Status != OperationStatus.Cancelled
+                && operation.Status != OperationStatus.PartiallySent)
+                throw new UserFriendlyException("Only paused, cancelled or partially-sent operations can be reactivated.");
+
+            var hasActiveSenders = await _senderRepository.GetAll()
+                .AnyAsync(s => s.IsActive);
+
+            if (!hasActiveSenders)
+                throw new UserFriendlyException("No active email senders configured. Please add at least one sender before reactivating.");
+
+            var hasPendingEmails = await _operationEmailRepository.GetAll()
+                .AnyAsync(e => e.OperationId == operationId && e.Status == SendStatus.Pending);
+
+            if (!hasPendingEmails)
+                throw new UserFriendlyException("No pending emails remaining in this operation.");
+
+            operation.Status = OperationStatus.Pending;
+            operation.CompletedAt = null;
+            operation.StopReason = null;
+            await _operationRepository.UpdateAsync(operation);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
+                new BulkEmailJobArgs { OperationId = operationId });
+        }
+
+        // ------------------------------------------------------------------ //
         //  Private Helpers
         // ------------------------------------------------------------------ //
 
@@ -321,7 +390,8 @@ namespace AutoMail.BulkEmail
                 PendingCount = op.TotalEmails - op.SentCount - op.FailedCount,
                 CreationTime = op.CreationTime,
                 StartedAt = op.StartedAt,
-                CompletedAt = op.CompletedAt
+                CompletedAt = op.CompletedAt,
+                StopReason = op.StopReason
             };
         }
 

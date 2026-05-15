@@ -7,15 +7,21 @@
 @section styles {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
     <style>
-        .badge-pending      { background: #6c757d; color: #fff; }
-        .badge-inprogress   { background: #007bff; color: #fff; }
-        .badge-completed    { background: #28a745; color: #fff; }
-        .badge-failed       { background: #dc3545; color: #fff; }
+        .badge-pending       { background: #6c757d; color: #fff; }
+        .badge-inprogress    { background: #007bff; color: #fff; }
+        .badge-completed     { background: #28a745; color: #fff; }
+        .badge-failed        { background: #dc3545; color: #fff; }
         .badge-partiallysent { background: #ffc107; color: #212529; }
+        .badge-paused        { background: #fd7e14; color: #fff; }
+        .badge-cancelled     { background: #343a40; color: #fff; }
         .badge-success-email { background: #28a745; color: #fff; }
 
-        .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-card .stat-value { font-size: 2rem; font-weight: 700; transition: color .3s; }
         .stat-card .stat-label { font-size: .85rem; color: #888; }
+        .stat-value.bump { transform: scale(1.1); transition: transform .15s; }
+
+        .progress-lg { height: 10px; border-radius: 5px; background: #e9ecef; }
+        .progress-lg .progress-bar { border-radius: 5px; transition: width .5s ease; }
 
         #page-overlay {
             display: none;
@@ -30,6 +36,11 @@
 
         .email-table td { font-size: .9rem; }
         .body-preview { max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; padding: 12px; border-radius: 4px; background: #f8f9fa; }
+
+        /* Highlight new rows added via SignalR */
+        @@keyframes row-flash { from { background: #d4edda; } to { background: transparent; } }
+        tr.row-new { animation: row-flash 1.5s ease-out; }
+        tr.row-new-fail { animation: row-flash 1.5s ease-out; background: #f8d7da !important; }
     </style>
 }
 
@@ -65,7 +76,9 @@
     <div class="card card-primary card-outline">
         <div class="card-header">
             <h3 class="card-title"><i class="fas fa-chart-bar mr-1"></i> Summary</h3>
-            <div class="card-tools">
+            <div class="card-tools d-flex align-items-center">
+                <!-- Operation control buttons -->
+                <div id="op-controls" class="mr-2"></div>
                 <span class="badge px-3 py-2" id="op-status-badge" style="font-size:.9rem">Loading...</span>
             </div>
         </div>
@@ -84,6 +97,18 @@
                     <div class="body-preview mt-1" id="op-body">—</div>
                 </div>
             </div>
+
+            <!-- Live progress bar (visible when InProgress) -->
+            <div id="progress-section" style="display:none" class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <small class="text-muted">Sending progress</small>
+                    <small id="progress-label" class="font-weight-bold">0%</small>
+                </div>
+                <div class="progress-lg">
+                    <div class="progress-bar bg-primary" id="progress-bar" style="width:0%"></div>
+                </div>
+            </div>
+
             <div class="row text-center">
                 <div class="col-md-3 col-6">
                     <div class="stat-card">
@@ -115,14 +140,21 @@
                 <div class="col-md-4"><small>Completed: <span id="op-completed">—</span></small></div>
                 <div class="col-md-4"></div>
             </div>
+            <!-- Stop reason banner – shown when the operation stopped early -->
+            <div id="stop-reason-row" class="mt-3" style="display:none">
+                <div class="alert alert-warning py-2 mb-0">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <strong>Why it stopped:</strong> <span id="stop-reason-text"></span>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Actions -->
+    <!-- Actions (failures / retry / download) -->
     <div class="card card-outline card-warning" id="actions-card" style="display:none">
         <div class="card-body">
-            <div class="btn-group">
-                <a href="@Url.Action("DownloadFailed", "BulkEmail")?id=@operationId" class="btn btn-outline-danger" id="btn-download-failed">
+            <div class="btn-group flex-wrap">
+                <a href="@Url.Action("DownloadFailed", "BulkEmail")?id=@operationId" class="btn btn-outline-danger mr-1" id="btn-download-failed">
                     <i class="fas fa-file-csv mr-1"></i> Download Failed (CSV)
                 </a>
                 <button type="button" class="btn btn-outline-warning" id="btn-retry">
@@ -167,12 +199,18 @@
 
 @section scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
     <script>
     (function ($) {
         'use strict';
 
         var opId = @operationId;
         var refreshTimer = null;
+        var hubConnection = null;
+        var currentStatus = '';
+        var totalEmails = 0;
+
+        // ── Helpers ──────────────────────────────────────────────────────── //
 
         function escapeHtml(str) {
             if (!str) return '';
@@ -186,23 +224,24 @@
         }
 
         function statusBadge(status) {
-            var cls = 'badge-pending', label = status;
-            switch ((status || '').toLowerCase()) {
-                case 'pending':       cls = 'badge-pending'; break;
-                case 'inprogress':    cls = 'badge-inprogress'; label = 'In Progress'; break;
-                case 'completed':     cls = 'badge-completed'; break;
-                case 'failed':        cls = 'badge-failed'; break;
-                case 'partiallysent': cls = 'badge-partiallysent'; label = 'Partially Sent'; break;
-                case 'success':       cls = 'badge-success-email'; label = 'Sent'; break;
-            }
-            return '<span class="badge ' + cls + ' px-2 py-1">' + escapeHtml(label) + '</span>';
+            var map = {
+                'pending':       ['badge-pending',       'Pending'],
+                'inprogress':    ['badge-inprogress',    'In Progress'],
+                'completed':     ['badge-completed',     'Completed'],
+                'failed':        ['badge-failed',        'Failed'],
+                'partiallysent': ['badge-partiallysent', 'Partially Sent'],
+                'paused':        ['badge-paused',        'Paused'],
+                'cancelled':     ['badge-cancelled',     'Cancelled'],
+                'success':       ['badge-success-email', 'Sent']
+            };
+            var entry = map[(status || '').toLowerCase()] || ['badge-pending', status];
+            return '<span class="badge ' + entry[0] + ' px-2 py-1">' + escapeHtml(entry[1]) + '</span>';
         }
 
         function toast(icon, title, text) {
             Swal.fire({ icon: icon, title: title, text: text,
                         toast: true, position: 'top-end',
-                        showConfirmButton: false, timer: 4000,
-                        timerProgressBar: true });
+                        showConfirmButton: false, timer: 4000, timerProgressBar: true });
         }
 
         function alertError(msg) {
@@ -213,6 +252,100 @@
             return $('input[name="__RequestVerificationToken"]').val();
         }
 
+        // ── Progress bar ─────────────────────────────────────────────────── //
+
+        function updateProgress(sent, total, status) {
+            var st = (status || '').toLowerCase();
+            if (st === 'inprogress' || st === 'paused') {
+                $('#progress-section').show();
+                var pct = total > 0 ? Math.round((sent / total) * 100) : 0;
+                var color = st === 'paused' ? 'bg-warning' : 'bg-primary';
+                $('#progress-bar')
+                    .removeClass('bg-primary bg-warning bg-success bg-danger bg-secondary')
+                    .addClass(color)
+                    .css('width', pct + '%');
+                $('#progress-label').text(pct + '%');
+            } else if (st === 'completed') {
+                $('#progress-section').show();
+                $('#progress-bar').removeClass().addClass('progress-bar bg-success').css('width', '100%');
+                $('#progress-label').text('100%');
+            } else {
+                $('#progress-section').hide();
+            }
+        }
+
+        // ── Operation controls ───────────────────────────────────────────── //
+
+        function renderControls(status) {
+            var st = (status || '').toLowerCase();
+            var html = '';
+
+            if (st === 'inprogress') {
+                html += '<button class="btn btn-sm btn-warning mr-1" id="btn-pause"><i class="fas fa-pause mr-1"></i>Pause</button>';
+                html += '<button class="btn btn-sm btn-danger mr-1" id="btn-stop"><i class="fas fa-stop mr-1"></i>Stop</button>';
+            }
+            if (st === 'paused' || st === 'cancelled' || st === 'partiallysent') {
+                html += '<button class="btn btn-sm btn-success mr-1" id="btn-reactivate"><i class="fas fa-play mr-1"></i>Reactivate</button>';
+            }
+            if (st === 'paused' || st === 'partiallysent') {
+                html += '<button class="btn btn-sm btn-danger mr-1" id="btn-stop"><i class="fas fa-stop mr-1"></i>Stop</button>';
+            }
+
+            $('#op-controls').html(html);
+            bindControlButtons();
+        }
+
+        function bindControlButtons() {
+            $('#btn-pause').off('click').on('click', function () {
+                Swal.fire({
+                    title: 'Pause Operation?',
+                    text: 'Sending will stop after the current email.',
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonColor: '#fd7e14',
+                    confirmButtonText: '<i class="fas fa-pause"></i> Pause'
+                }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("Pause", "BulkEmail")', 'Paused'); });
+            });
+
+            $('#btn-stop').off('click').on('click', function () {
+                Swal.fire({
+                    title: 'Stop Operation?',
+                    text: 'The operation will be cancelled. Remaining emails stay pending and can be reactivated.',
+                    icon: 'warning', showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: '<i class="fas fa-stop"></i> Stop'
+                }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("Stop", "BulkEmail")', 'Stopped'); });
+            });
+
+            $('#btn-reactivate').off('click').on('click', function () {
+                Swal.fire({
+                    title: 'Reactivate Operation?',
+                    text: 'A new sending job will resume from the remaining pending emails.',
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonColor: '#28a745',
+                    confirmButtonText: '<i class="fas fa-play"></i> Reactivate'
+                }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("Reactivate", "BulkEmail")', 'Reactivated'); });
+            });
+        }
+
+        function controlOp(url, label) {
+            $.ajax({
+                url: url, type: 'POST', contentType: 'application/json',
+                data: JSON.stringify({ id: opId }),
+                headers: { 'RequestVerificationToken': getToken() },
+                success: function () {
+                    toast('success', label, '');
+                    setTimeout(loadDetail, 400);
+                },
+                error: function (xhr) {
+                    var msg = 'An error occurred.';
+                    try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch(_) {}
+                    alertError(msg);
+                }
+            });
+        }
+
+        // ── Load full detail from server ─────────────────────────────────── //
+
         function loadDetail() {
             $.ajax({
                 url: '@Url.Action("Detail", "BulkEmail")',
@@ -220,95 +353,176 @@
                 type: 'GET',
                 success: function (resp) {
                     var op = resp.result || resp;
-
-                    // Summary
-                    $('#op-subject').text(op.subject);
-                    $('#op-body').html(op.body);
-                    $('#op-created').text(formatDate(op.creationTime));
-                    $('#op-started').text(formatDate(op.startedAt));
-                    $('#op-completed').text(formatDate(op.completedAt));
-
-                    // Status badge
-                    $('#op-status-badge').html(statusBadge(op.statusText));
-
-                    // Stats
-                    $('#stat-total').text(op.totalEmails);
-                    $('#stat-sent').text(op.sentCount);
-                    $('#stat-failed').text(op.failedCount);
-                    $('#stat-pending').text(op.pendingCount);
-
-                    // Actions
-                    if (op.failedCount > 0) {
-                        $('#actions-card').show();
-                        if (op.retryableCount > 0) {
-                            $('#btn-retry').show();
-                            $('#retry-info').text(op.retryableCount + ' email(s) can be retried (under 3 attempts).');
-                        } else {
-                            $('#btn-retry').hide();
-                            $('#retry-info').text('All failed emails have reached the maximum retry limit.');
-                        }
-                    } else {
-                        $('#actions-card').hide();
-                    }
-
-                    // Emails table
-                    var tbody = $('#emails-tbody');
-                    tbody.empty();
-                    if (op.emails && op.emails.length) {
-                        op.emails.forEach(function (e) {
-                            tbody.append(
-                                '<tr>' +
-                                '<td>' + escapeHtml(e.email) + '</td>' +
-                                '<td>' + statusBadge(e.statusText) + '</td>' +
-                                '<td>' + escapeHtml(e.senderEmail || '\u2014') + '</td>' +
-                                '<td>' + formatDate(e.sentAt) + '</td>' +
-                                '<td>' + e.retryCount + '</td>' +
-                                '<td>' + escapeHtml(e.errorMessage || '\u2014') + '</td>' +
-                                '</tr>'
-                            );
-                        });
-                    } else {
-                        tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No emails in this operation.</td></tr>');
-                    }
-
-                    // Auto-refresh for in-progress
-                    var status = (op.statusText || '').toLowerCase();
-                    if (status === 'inprogress' || status === 'pending') {
-                        startAutoRefresh();
-                    } else {
-                        stopAutoRefresh();
-                    }
+                    applyOpData(op);
+                    renderEmailsTable(op.emails || []);
                 }
             });
         }
 
-        function startAutoRefresh() {
-            if (!refreshTimer) {
-                refreshTimer = setInterval(loadDetail, 5000);
+        function applyOpData(op) {
+            currentStatus = op.statusText || '';
+            totalEmails = op.totalEmails || 0;
+
+            $('#op-subject').text(op.subject);
+            $('#op-body').html(op.body);
+            $('#op-created').text(formatDate(op.creationTime));
+            $('#op-started').text(formatDate(op.startedAt));
+            $('#op-completed').text(formatDate(op.completedAt));
+            $('#op-status-badge').html(statusBadge(op.statusText));
+
+            $('#stat-total').text(op.totalEmails);
+            $('#stat-sent').text(op.sentCount);
+            $('#stat-failed').text(op.failedCount);
+            $('#stat-pending').text(op.pendingCount);
+
+            updateProgress(op.sentCount, op.totalEmails, op.statusText);
+            renderControls(op.statusText);
+
+            // Stop reason banner
+            if (op.stopReason) {
+                $('#stop-reason-text').text(op.stopReason);
+                $('#stop-reason-row').show();
+            } else {
+                $('#stop-reason-row').hide();
             }
+
+            // Failed actions card
+            if (op.failedCount > 0) {
+                $('#actions-card').show();
+                if (op.retryableCount > 0) {
+                    $('#btn-retry').show();
+                    $('#retry-info').text(op.retryableCount + ' email(s) can be retried.');
+                } else {
+                    $('#btn-retry').hide();
+                    $('#retry-info').text('All failed emails have reached the max retry limit.');
+                }
+            } else {
+                $('#actions-card').hide();
+            }
+
+            var st = (op.statusText || '').toLowerCase();
+            if (st === 'inprogress' || st === 'pending') startAutoRefresh();
+            else stopAutoRefresh();
         }
-        function stopAutoRefresh() {
-            if (refreshTimer) {
-                clearInterval(refreshTimer);
-                refreshTimer = null;
+
+        // ── Emails table ─────────────────────────────────────────────────── //
+
+        function renderEmailsTable(emails) {
+            var tbody = $('#emails-tbody');
+            tbody.empty();
+            if (emails.length) {
+                emails.forEach(function (e) {
+                    tbody.append(buildEmailRow(e));
+                });
+            } else {
+                tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No emails in this operation.</td></tr>');
             }
         }
 
-        // ── Retry ──
+        function buildEmailRow(e, flash) {
+            var cls = flash ? (e.statusText === 'Success' ? 'row-new' : 'row-new-fail') : '';
+            return '<tr class="' + cls + '">' +
+                '<td>' + escapeHtml(e.email) + '</td>' +
+                '<td>' + statusBadge(e.statusText) + '</td>' +
+                '<td>' + escapeHtml(e.senderEmail || '\u2014') + '</td>' +
+                '<td>' + formatDate(e.sentAt) + '</td>' +
+                '<td>' + (e.retryCount || 0) + '</td>' +
+                '<td>' + escapeHtml(e.errorMessage || '\u2014') + '</td>' +
+                '</tr>';
+        }
+
+        // ── SignalR: receive per-email notification ───────────────────────── //
+
+        function initSignalR() {
+            hubConnection = new signalR.HubConnectionBuilder()
+                .withUrl('/signalr-email')
+                .withAutomaticReconnect()
+                .build();
+
+            hubConnection.on('OnEmailSent', function (n) {
+                // Update stats live
+                $('#stat-sent').text(n.sentCount);
+                $('#stat-failed').text(n.failedCount);
+                $('#stat-pending').text(Math.max(0, n.pendingCount));
+
+                updateProgress(n.sentCount, n.totalEmails, 'InProgress');
+
+                // Prepend new row to email table
+                var fakeEmail = {
+                    email:        n.email,
+                    statusText:   n.status === 'Sent' ? 'Success' : 'Failed',
+                    senderEmail:  n.senderEmail,
+                    sentAt:       n.sentAt ? new Date(n.sentAt) : null,
+                    retryCount:   0,
+                    errorMessage: n.errorMessage || null
+                };
+                var $tbody = $('#emails-tbody');
+                // Remove the "no emails" placeholder row if present
+                $tbody.find('td[colspan]').closest('tr').remove();
+                $tbody.prepend(buildEmailRow(fakeEmail, true));
+            });
+
+            hubConnection.on('OnStatusChanged', function (n) {
+                currentStatus = n.status;
+                $('#op-status-badge').html(statusBadge(n.status));
+                $('#stat-sent').text(n.sentCount);
+                $('#stat-failed').text(n.failedCount);
+                $('#stat-pending').text(Math.max(0, n.pendingCount));
+                updateProgress(n.sentCount, n.totalEmails, n.status);
+                renderControls(n.status);
+
+                // Show/hide actions card
+                if (n.failedCount > 0) {
+                    $('#actions-card').show();
+                } else {
+                    $('#actions-card').hide();
+                }
+
+                var st = (n.status || '').toLowerCase();
+                if (st === 'completed' || st === 'failed' || st === 'partiallysent') {
+                    stopAutoRefresh();
+                    toast('info', 'Operation ' + n.status, 'Sent: ' + n.sentCount + ' | Failed: ' + n.failedCount);
+                    // Reload to get final accurate data
+                    setTimeout(loadDetail, 800);
+                }
+                if (st === 'paused') {
+                    stopAutoRefresh();
+                    toast('warning', 'Paused', 'Operation has been paused.');
+                }
+            });
+
+            hubConnection.start().then(function () {
+                hubConnection.invoke('SubscribeToOperation', opId).catch(function(e) {
+                    console.warn('Subscribe failed:', e);
+                });
+            }).catch(function (err) {
+                console.warn('SignalR failed (polling as fallback):', err);
+            });
+        }
+
+        function startAutoRefresh() {
+            if (!refreshTimer) refreshTimer = setInterval(loadDetail, 5000);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        }
+
+        // ── Retry ────────────────────────────────────────────────────────── //
+
         $('#btn-retry').on('click', function () {
             Swal.fire({
                 title: 'Retry Failed Emails?',
-                html: 'This will re-queue all failed emails in this operation that haven\'t exceeded the max retry limit.',
+                html: 'This will re-queue all failed emails that haven\'t exceeded the max retry limit.',
                 icon: 'warning', showCancelButton: true,
                 confirmButtonColor: '#ffc107',
                 confirmButtonText: '<i class="fas fa-redo"></i> Yes, Retry',
                 cancelButtonText: 'Cancel'
-            }).then(function (result) {
-                if (!result.isConfirmed) return;
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
                 $.ajax({
                     url: '@Url.Action("Retry", "BulkEmail")',
-                    type: 'POST',
-                    contentType: 'application/json',
+                    type: 'POST', contentType: 'application/json',
                     data: JSON.stringify({ id: opId }),
                     headers: { 'RequestVerificationToken': getToken() },
                     success: function (resp) {
@@ -318,14 +532,16 @@
                     },
                     error: function (xhr) {
                         var msg = 'An unexpected error occurred.';
-                        try { var err = JSON.parse(xhr.responseText); msg = (err.error && err.error.message) ? err.error.message : msg; } catch (e) { }
+                        try { var err = JSON.parse(xhr.responseText); msg = (err.error && err.error.message) ? err.error.message : msg; } catch(_) {}
                         alertError(msg);
                     }
                 });
             });
         });
 
-        // ── Init ──
+        // ── Init ─────────────────────────────────────────────────────────── //
+
+        initSignalR();
         loadDetail();
 
     }(jQuery));

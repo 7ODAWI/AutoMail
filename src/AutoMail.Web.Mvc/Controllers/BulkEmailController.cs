@@ -72,9 +72,35 @@ namespace AutoMail.Web.Controllers
             var excelBytes = await _operationAppService.ExportDistinctEmailsExcelAsync();
             return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "distinct-emails.xlsx");
         }
+
+        [HttpPost]
+        public async Task<JsonResult> Pause([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.PauseOperationAsync(input.Id);
+            return Json(new { message = "Operation paused." });
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> Stop([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.StopOperationAsync(input.Id);
+            return Json(new { message = "Operation stopped." });
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> Reactivate([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.ReactivateOperationAsync(input.Id);
+            return Json(new { message = "Operation reactivated and job re-queued." });
+        }
     }
 
     public class RetryOperationInput
+    {
+        public long Id { get; set; }
+    }
+
+    public class OperationControlInput
     {
         public long Id { get; set; }
     }

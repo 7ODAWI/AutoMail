@@ -28,5 +28,9 @@ namespace AutoMail.Project_Models
         public DateTime? StartedAt { get; set; }
 
         public DateTime? CompletedAt { get; set; }
+
+        /// <summary>Human-readable reason why the operation stopped early (null = normal completion).</summary>
+        [MaxLength(1000)]
+        public string StopReason { get; set; }
     }
 }

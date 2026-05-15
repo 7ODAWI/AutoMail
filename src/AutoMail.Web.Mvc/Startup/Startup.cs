@@ -5,6 +5,7 @@ using Abp.Castle.Logging.Log4Net;
 using AutoMail.Authentication.JwtBearer;
 using AutoMail.Configuration;
 using AutoMail.Identity;
+using AutoMail.Web.Hubs;
 using AutoMail.Web.Resources;
 using Castle.Facilities.Logging;
 using Microsoft.AspNetCore.Builder;
@@ -93,6 +94,7 @@ public class Startup
         app.UseEndpoints(endpoints =>
         {
             endpoints.MapHub<AbpCommonHub>("/signalr");
+            endpoints.MapHub<EmailOperationHub>("/signalr-email");
             endpoints.MapControllerRoute("default", "{controller=BulkEmail}/{action=Index}/{id?}");
             endpoints.MapControllerRoute("defaultWithArea", "{area}/{controller=BulkEmail}/{action=Index}/{id?}");
         });

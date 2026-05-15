@@ -15,5 +15,10 @@ namespace AutoMail.BulkEmail
         Task<byte[]> ExportDistinctEmailsExcelAsync();
         Task<List<string>> GetDistinctEmailsAsync();
         Task<List<string>> GetEmailsAsync();
+
+        // Operation control
+        Task PauseOperationAsync(long operationId);
+        Task StopOperationAsync(long operationId);
+        Task ReactivateOperationAsync(long operationId);
     }
 }
