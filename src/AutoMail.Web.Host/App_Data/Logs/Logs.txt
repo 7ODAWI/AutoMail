@@ -98,3 +98,135 @@ INFO  2026-05-15 10:21:41,579 [14   ] NetCore.StaticFiles.StaticFileMiddleware -
 INFO  2026-05-15 10:21:41,610 [9    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/swagger/ui/abp.js - 200 3814 text/javascript 246.9715ms
 INFO  2026-05-15 10:21:41,619 [8    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_vs/browserLink - 200 - text/javascript;+charset=UTF-8 204.3727ms
 INFO  2026-05-15 10:21:41,654 [14   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/swagger/swagger-ui-bundle.js - 200 1484234 text/javascript 358.5938ms
+DEBUG 2026-05-15 10:53:28,279 [2    ] Abp.Modules.AbpModuleManager             - Loading Abp modules...
+DEBUG 2026-05-15 10:53:28,698 [2    ] Abp.Modules.AbpModuleManager             - Found 15 ABP modules in total.
+DEBUG 2026-05-15 10:53:28,731 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.Web.Host.Startup.AutoMailWebHostModule, AutoMail.Web.Host, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,735 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.AutoMailWebCoreModule, AutoMail.Web.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,736 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.AutoMailApplicationModule, AutoMail.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,737 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.AutoMailCoreModule, AutoMail.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,739 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Zero.AbpZeroCoreModule, Abp.ZeroCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,739 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Zero.AbpZeroCommonModule, Abp.Zero.Common, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,739 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AbpKernelModule, Abp, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,741 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AutoMapper.AbpAutoMapperModule, Abp.AutoMapper, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,742 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.EntityFrameworkCore.AutoMailEntityFrameworkModule, AutoMail.EntityFrameworkCore, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,742 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Zero.EntityFrameworkCore.AbpZeroCoreEntityFrameworkCoreModule, Abp.ZeroCore.EntityFrameworkCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,742 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.EntityFrameworkCore.AbpEntityFrameworkCoreModule, Abp.EntityFrameworkCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,743 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.EntityFramework.AbpEntityFrameworkCommonModule, Abp.EntityFramework.Common, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,743 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AspNetCore.AbpAspNetCoreModule, Abp.AspNetCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,744 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Web.AbpWebCommonModule, Abp.Web.Common, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,745 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AspNetCore.SignalR.AbpAspNetCoreSignalRModule, Abp.AspNetCore.SignalR, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:28,750 [2    ] Abp.Modules.AbpModuleManager             - 15 modules loaded.
+DEBUG 2026-05-15 10:53:28,878 [2    ] o.Configuration.LanguageManagementConfig - Converted Abp (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 10:53:28,878 [2    ] o.Configuration.LanguageManagementConfig - Converted AbpZero (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 10:53:28,878 [2    ] o.Configuration.LanguageManagementConfig - Converted AutoMail (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 10:53:28,878 [2    ] o.Configuration.LanguageManagementConfig - Converted AbpWeb (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 10:53:29,505 [2    ] ameworkCore.AbpEntityFrameworkCoreModule - Registering DbContext: AutoMail.EntityFrameworkCore.AutoMailDbContext, AutoMail.EntityFrameworkCore, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 10:53:29,736 [2    ] Abp.Localization.LocalizationManager     - Initializing 4 localization sources.
+DEBUG 2026-05-15 10:53:29,777 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: Abp
+DEBUG 2026-05-15 10:53:29,788 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: AbpZero
+DEBUG 2026-05-15 10:53:29,797 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: AutoMail
+DEBUG 2026-05-15 10:53:29,803 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: AbpWeb
+DEBUG 2026-05-15 10:53:29,818 [2    ] Abp.BackgroundJobs.BackgroundJobManager  - Start background worker: Abp.BackgroundJobs.BackgroundJobManager
+DEBUG 2026-05-15 10:53:29,832 [2    ] , Culture=neutral, PublicKeyToken=null]] - Start background worker: Abp.Authorization.Users.UserTokenExpirationWorker`2[[AutoMail.MultiTenancy.Tenant, AutoMail.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null],[AutoMail.Authorization.Users.User, AutoMail.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]
+DEBUG 2026-05-15 10:53:29,862 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - Found 7 classes define auto mapping attributes
+DEBUG 2026-05-15 10:53:29,862 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Users.Dto.CreateUserDto
+DEBUG 2026-05-15 10:53:29,868 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Users.Dto.UserDto
+DEBUG 2026-05-15 10:53:29,870 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Sessions.Dto.TenantLoginInfoDto
+DEBUG 2026-05-15 10:53:29,870 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Sessions.Dto.UserLoginInfoDto
+DEBUG 2026-05-15 10:53:29,870 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Roles.Dto.PermissionDto
+DEBUG 2026-05-15 10:53:29,871 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.MultiTenancy.Dto.CreateTenantDto
+DEBUG 2026-05-15 10:53:29,871 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.MultiTenancy.Dto.TenantDto
+INFO  2026-05-15 10:53:33,971 [2    ] tCore.Builder.RequestLocalizationOptions - Supported Request Localization Cultures: en,es-MX,fr,de,it,nl,pt-BR,tr,ru,ar,fa,ja,zh-Hans
+INFO  2026-05-15 10:53:34,740 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/ - - -
+INFO  2026-05-15 10:53:34,859 [2    ] Microsoft.Hosting.Lifetime               - Application started. Press Ctrl+C to shut down.
+INFO  2026-05-15 10:53:34,863 [2    ] Microsoft.Hosting.Lifetime               - Hosting environment: Development
+INFO  2026-05-15 10:53:34,867 [2    ] Microsoft.Hosting.Lifetime               - Content root path: D:\AutoMail\src\AutoMail.Web.Host
+INFO  2026-05-15 10:53:35,130 [9    ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'AutoMail.Web.Host.Controllers.HomeController.Index (AutoMail.Web.Host)'
+INFO  2026-05-15 10:53:35,219 [9    ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "Index", controller = "Home", area = ""}. Executing controller action with signature Microsoft.AspNetCore.Mvc.IActionResult Index() on controller AutoMail.Web.Host.Controllers.HomeController (AutoMail.Web.Host).
+INFO  2026-05-15 10:53:35,581 [13   ] vc.Infrastructure.RedirectResultExecutor - Executing RedirectResult, redirecting to /swagger.
+INFO  2026-05-15 10:53:35,602 [13   ] c.Infrastructure.ControllerActionInvoker - Executed action AutoMail.Web.Host.Controllers.HomeController.Index (AutoMail.Web.Host) in 366.4011ms
+INFO  2026-05-15 10:53:35,605 [13   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'AutoMail.Web.Host.Controllers.HomeController.Index (AutoMail.Web.Host)'
+INFO  2026-05-15 10:53:35,660 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/ - 302 - - 934.7609ms
+INFO  2026-05-15 10:53:35,723 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - - -
+INFO  2026-05-15 10:53:35,746 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - 200 14939 application/javascript;+charset=utf-8 16.6852ms
+INFO  2026-05-15 10:53:35,791 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_vs/browserLink - - -
+INFO  2026-05-15 10:53:35,846 [8    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_vs/browserLink - 200 - text/javascript;+charset=UTF-8 56.6130ms
+INFO  2026-05-15 10:53:36,330 [12   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/AntiForgery/SetCookie - - -
+INFO  2026-05-15 10:53:36,335 [12   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'AutoMail.Web.Host.Controllers.AntiForgeryController.SetCookie (AutoMail.Web.Host)'
+INFO  2026-05-15 10:53:36,343 [12   ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "SetCookie", controller = "AntiForgery", area = ""}. Executing controller action with signature Void SetCookie() on controller AutoMail.Web.Host.Controllers.AntiForgeryController (AutoMail.Web.Host).
+INFO  2026-05-15 10:53:36,430 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/swagger/v1/swagger.json - - -
+INFO  2026-05-15 10:53:36,484 [8    ] .Mvc.Infrastructure.ObjectResultExecutor - Executing ObjectResult, writing value of type 'Abp.Web.Models.AjaxResponse'.
+INFO  2026-05-15 10:53:36,541 [8    ] c.Infrastructure.ControllerActionInvoker - Executed action AutoMail.Web.Host.Controllers.AntiForgeryController.SetCookie (AutoMail.Web.Host) in 171.7092ms
+INFO  2026-05-15 10:53:36,543 [8    ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'AutoMail.Web.Host.Controllers.AntiForgeryController.SetCookie (AutoMail.Web.Host)'
+INFO  2026-05-15 10:53:36,547 [8    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/AntiForgery/SetCookie - 200 - application/json;+charset=utf-8 217.5266ms
+INFO  2026-05-15 10:53:36,583 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/swagger/v1/swagger.json - 200 - application/json;charset=utf-8 178.4472ms
+INFO  2026-05-15 10:53:36,896 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - - -
+INFO  2026-05-15 10:53:36,899 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - 200 14939 application/javascript;+charset=utf-8 3.4192ms
+INFO  2026-05-15 10:53:39,231 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_vs/browserLink - - -
+INFO  2026-05-15 10:53:39,257 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_vs/browserLink - 200 - text/javascript;+charset=UTF-8 26.9452ms
+DEBUG 2026-05-15 11:07:20,491 [2    ] Abp.Modules.AbpModuleManager             - Loading Abp modules...
+DEBUG 2026-05-15 11:07:21,008 [2    ] Abp.Modules.AbpModuleManager             - Found 15 ABP modules in total.
+DEBUG 2026-05-15 11:07:21,046 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.Web.Host.Startup.AutoMailWebHostModule, AutoMail.Web.Host, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,050 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.AutoMailWebCoreModule, AutoMail.Web.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,050 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.AutoMailApplicationModule, AutoMail.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,051 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.AutoMailCoreModule, AutoMail.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,052 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Zero.AbpZeroCoreModule, Abp.ZeroCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,053 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Zero.AbpZeroCommonModule, Abp.Zero.Common, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,053 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AbpKernelModule, Abp, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,055 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AutoMapper.AbpAutoMapperModule, Abp.AutoMapper, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,056 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: AutoMail.EntityFrameworkCore.AutoMailEntityFrameworkModule, AutoMail.EntityFrameworkCore, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,057 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Zero.EntityFrameworkCore.AbpZeroCoreEntityFrameworkCoreModule, Abp.ZeroCore.EntityFrameworkCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,057 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.EntityFrameworkCore.AbpEntityFrameworkCoreModule, Abp.EntityFrameworkCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,058 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.EntityFramework.AbpEntityFrameworkCommonModule, Abp.EntityFramework.Common, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,059 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AspNetCore.AbpAspNetCoreModule, Abp.AspNetCore, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,059 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.Web.AbpWebCommonModule, Abp.Web.Common, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,060 [2    ] Abp.Modules.AbpModuleManager             - Loaded module: Abp.AspNetCore.SignalR.AbpAspNetCoreSignalRModule, Abp.AspNetCore.SignalR, Version=10.2.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:21,062 [2    ] Abp.Modules.AbpModuleManager             - 15 modules loaded.
+DEBUG 2026-05-15 11:07:21,232 [2    ] o.Configuration.LanguageManagementConfig - Converted Abp (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 11:07:21,232 [2    ] o.Configuration.LanguageManagementConfig - Converted AbpZero (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 11:07:21,232 [2    ] o.Configuration.LanguageManagementConfig - Converted AutoMail (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 11:07:21,232 [2    ] o.Configuration.LanguageManagementConfig - Converted AbpWeb (Abp.Localization.Dictionaries.DictionaryBasedLocalizationSource) to MultiTenantLocalizationSource
+DEBUG 2026-05-15 11:07:22,184 [2    ] ameworkCore.AbpEntityFrameworkCoreModule - Registering DbContext: AutoMail.EntityFrameworkCore.AutoMailDbContext, AutoMail.EntityFrameworkCore, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+DEBUG 2026-05-15 11:07:22,597 [2    ] Abp.Localization.LocalizationManager     - Initializing 4 localization sources.
+DEBUG 2026-05-15 11:07:22,687 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: Abp
+DEBUG 2026-05-15 11:07:22,704 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: AbpZero
+DEBUG 2026-05-15 11:07:22,716 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: AutoMail
+DEBUG 2026-05-15 11:07:22,722 [2    ] Abp.Localization.LocalizationManager     - Initialized localization source: AbpWeb
+DEBUG 2026-05-15 11:07:22,737 [2    ] Abp.BackgroundJobs.BackgroundJobManager  - Start background worker: Abp.BackgroundJobs.BackgroundJobManager
+DEBUG 2026-05-15 11:07:22,752 [2    ] , Culture=neutral, PublicKeyToken=null]] - Start background worker: Abp.Authorization.Users.UserTokenExpirationWorker`2[[AutoMail.MultiTenancy.Tenant, AutoMail.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null],[AutoMail.Authorization.Users.User, AutoMail.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]
+DEBUG 2026-05-15 11:07:22,796 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - Found 7 classes define auto mapping attributes
+DEBUG 2026-05-15 11:07:22,796 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Users.Dto.CreateUserDto
+DEBUG 2026-05-15 11:07:22,803 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Users.Dto.UserDto
+DEBUG 2026-05-15 11:07:22,804 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Sessions.Dto.TenantLoginInfoDto
+DEBUG 2026-05-15 11:07:22,804 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Sessions.Dto.UserLoginInfoDto
+DEBUG 2026-05-15 11:07:22,804 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.Roles.Dto.PermissionDto
+DEBUG 2026-05-15 11:07:22,805 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.MultiTenancy.Dto.CreateTenantDto
+DEBUG 2026-05-15 11:07:22,805 [2    ] Abp.AutoMapper.AbpAutoMapperModule       - AutoMail.MultiTenancy.Dto.TenantDto
+INFO  2026-05-15 11:07:28,535 [2    ] tCore.Builder.RequestLocalizationOptions - Supported Request Localization Cultures: en,es-MX,fr,de,it,nl,pt-BR,tr,ru,ar,fa,ja,zh-Hans
+INFO  2026-05-15 11:07:29,491 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/ - - -
+INFO  2026-05-15 11:07:29,631 [2    ] Microsoft.Hosting.Lifetime               - Application started. Press Ctrl+C to shut down.
+INFO  2026-05-15 11:07:29,636 [2    ] Microsoft.Hosting.Lifetime               - Hosting environment: Development
+INFO  2026-05-15 11:07:29,638 [2    ] Microsoft.Hosting.Lifetime               - Content root path: D:\AutoMail\src\AutoMail.Web.Host
+INFO  2026-05-15 11:07:30,166 [15   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'AutoMail.Web.Host.Controllers.HomeController.Index (AutoMail.Web.Host)'
+INFO  2026-05-15 11:07:30,292 [15   ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "Index", controller = "Home", area = ""}. Executing controller action with signature Microsoft.AspNetCore.Mvc.IActionResult Index() on controller AutoMail.Web.Host.Controllers.HomeController (AutoMail.Web.Host).
+INFO  2026-05-15 11:07:30,873 [13   ] vc.Infrastructure.RedirectResultExecutor - Executing RedirectResult, redirecting to /swagger.
+INFO  2026-05-15 11:07:30,902 [13   ] c.Infrastructure.ControllerActionInvoker - Executed action AutoMail.Web.Host.Controllers.HomeController.Index (AutoMail.Web.Host) in 584.3004ms
+INFO  2026-05-15 11:07:30,904 [13   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'AutoMail.Web.Host.Controllers.HomeController.Index (AutoMail.Web.Host)'
+INFO  2026-05-15 11:07:30,951 [13   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/ - 302 - - 1509.9128ms
+INFO  2026-05-15 11:07:30,979 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - - -
+INFO  2026-05-15 11:07:31,005 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - 200 14939 application/javascript;+charset=utf-8 25.1214ms
+INFO  2026-05-15 11:07:31,064 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_vs/browserLink - - -
+INFO  2026-05-15 11:07:31,134 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_vs/browserLink - 200 - text/javascript;+charset=UTF-8 70.3911ms
+INFO  2026-05-15 11:07:31,495 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/AntiForgery/SetCookie - - -
+INFO  2026-05-15 11:07:31,503 [15   ] ft.AspNetCore.Routing.EndpointMiddleware - Executing endpoint 'AutoMail.Web.Host.Controllers.AntiForgeryController.SetCookie (AutoMail.Web.Host)'
+INFO  2026-05-15 11:07:31,553 [15   ] c.Infrastructure.ControllerActionInvoker - Route matched with {action = "SetCookie", controller = "AntiForgery", area = ""}. Executing controller action with signature Void SetCookie() on controller AutoMail.Web.Host.Controllers.AntiForgeryController (AutoMail.Web.Host).
+INFO  2026-05-15 11:07:31,559 [6    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/swagger/v1/swagger.json - - -
+INFO  2026-05-15 11:07:31,633 [15   ] .Mvc.Infrastructure.ObjectResultExecutor - Executing ObjectResult, writing value of type 'Abp.Web.Models.AjaxResponse'.
+INFO  2026-05-15 11:07:31,663 [15   ] c.Infrastructure.ControllerActionInvoker - Executed action AutoMail.Web.Host.Controllers.AntiForgeryController.SetCookie (AutoMail.Web.Host) in 105.5939ms
+INFO  2026-05-15 11:07:31,693 [15   ] ft.AspNetCore.Routing.EndpointMiddleware - Executed endpoint 'AutoMail.Web.Host.Controllers.AntiForgeryController.SetCookie (AutoMail.Web.Host)'
+INFO  2026-05-15 11:07:31,699 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/AntiForgery/SetCookie - 200 - application/json;+charset=utf-8 203.6194ms
+INFO  2026-05-15 11:07:31,704 [6    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/swagger/v1/swagger.json - 200 - application/json;charset=utf-8 146.6985ms
+INFO  2026-05-15 11:07:33,019 [6    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - - -
+INFO  2026-05-15 11:07:33,022 [6    ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_framework/aspnetcore-browser-refresh.js - 200 14939 application/javascript;+charset=utf-8 3.5048ms
+INFO  2026-05-15 11:07:33,732 [15   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request starting HTTP/2 GET https://localhost:44311/_vs/browserLink - - -
+INFO  2026-05-15 11:07:33,752 [14   ] Microsoft.AspNetCore.Hosting.Diagnostics - Request finished HTTP/2 GET https://localhost:44311/_vs/browserLink - 200 - text/javascript;+charset=UTF-8 20.2296ms

@@ -1768,6 +1768,46 @@ namespace AutoMail.Migrations
                     b.ToTable("EmailSenders", (string)null);
                 });
 
+            modelBuilder.Entity("AutoMail.Project_Models.EmailTemplate", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("OperationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Weight")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId");
+
+                    b.ToTable("EmailTemplates", (string)null);
+                });
+
             modelBuilder.Entity("AutoMail.Project_Models.OperationEmail", b =>
                 {
                     b.Property<long>("Id")
@@ -1800,9 +1840,14 @@ namespace AutoMail.Migrations
                     b.Property<byte>("Status")
                         .HasColumnType("tinyint");
 
+                    b.Property<long?>("TemplateId")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SenderId");
+
+                    b.HasIndex("TemplateId");
 
                     b.HasIndex("OperationId", "Status");
 
@@ -2054,6 +2099,15 @@ namespace AutoMail.Migrations
                     b.Navigation("LastModifierUser");
                 });
 
+            modelBuilder.Entity("AutoMail.Project_Models.EmailTemplate", b =>
+                {
+                    b.HasOne("AutoMail.Project_Models.EmailOperation", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AutoMail.Project_Models.OperationEmail", b =>
                 {
                     b.HasOne("AutoMail.Project_Models.EmailOperation", "Operation")
@@ -2066,6 +2120,11 @@ namespace AutoMail.Migrations
                         .WithMany()
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AutoMail.Project_Models.EmailTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Operation");
 

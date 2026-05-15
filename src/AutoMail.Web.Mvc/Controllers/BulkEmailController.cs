@@ -93,6 +93,27 @@ namespace AutoMail.Web.Controllers
             await _operationAppService.ReactivateOperationAsync(input.Id);
             return Json(new { message = "Operation reactivated and job re-queued." });
         }
+
+        [HttpPost]
+        public async Task<JsonResult> AddTemplate([FromBody] CreateTemplateInput input)
+        {
+            var result = await _operationAppService.AddTemplateAsync(input);
+            return Json(result);
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> UpdateTemplate([FromBody] UpdateTemplateInput input)
+        {
+            var result = await _operationAppService.UpdateTemplateAsync(input);
+            return Json(result);
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> DeleteTemplate([FromBody] DeleteTemplateInput input)
+        {
+            await _operationAppService.DeleteTemplateAsync(input.Id);
+            return Json(new { message = "Template deleted." });
+        }
     }
 
     public class RetryOperationInput
@@ -101,6 +122,11 @@ namespace AutoMail.Web.Controllers
     }
 
     public class OperationControlInput
+    {
+        public long Id { get; set; }
+    }
+
+    public class DeleteTemplateInput
     {
         public long Id { get; set; }
     }

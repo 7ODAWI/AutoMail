@@ -27,19 +27,22 @@ namespace AutoMail.BulkEmail.Jobs
         private readonly IRepository<EmailSender, int> _senderRepository;
         private readonly IMailKitEmailDispatcher _dispatcher;
         private readonly IEmailOperationNotifier _notifier;
+        private readonly IRepository<EmailTemplate, long> _templateRepository;
 
         public BulkEmailSenderJob(
             IRepository<EmailOperation, long> operationRepository,
             IRepository<OperationEmail, long> operationEmailRepository,
             IRepository<EmailSender, int> senderRepository,
             IMailKitEmailDispatcher dispatcher,
-            IEmailOperationNotifier notifier)
+            IEmailOperationNotifier notifier,
+            IRepository<EmailTemplate, long> templateRepository)
         {
             _operationRepository = operationRepository;
             _operationEmailRepository = operationEmailRepository;
             _senderRepository = senderRepository;
             _dispatcher = dispatcher;
             _notifier = notifier;
+            _templateRepository = templateRepository;
         }
 
         [UnitOfWork]
@@ -134,6 +137,12 @@ namespace AutoMail.BulkEmail.Jobs
 
             Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId}: {activeSenders.Count} sender(s) ready. Subject: '{operation.Subject}'");
 
+            // ── Load templates for weighted-random selection ──
+            var templates = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == args.OperationId)
+                .ToListAsync();
+            var rng = new Random();
+
             // ── 2. Process emails for this operation ──
             var roundRobinIndex = 0;
             var totalSent = operation.SentCount;
@@ -218,7 +227,8 @@ namespace AutoMail.BulkEmail.Jobs
                         }
 
                         // ── Send ──
-                        var result = await _dispatcher.SendAsync(chosen.Client, chosen.Sender, email.Email, operation.Subject, operation.Body);
+                        var (tSubject, tBody, tId) = PickTemplate(templates, operation, rng);
+                        var result = await _dispatcher.SendAsync(chosen.Client, chosen.Sender, email.Email, tSubject, tBody);
 
                         // ── Update email record ──
                         if (result.Success)
@@ -226,6 +236,7 @@ namespace AutoMail.BulkEmail.Jobs
                             email.Status = SendStatus.Success;
                             email.SentAt = Clock.Now;
                             email.SenderId = chosen.Sender.Id;
+                            email.TemplateId = tId;
                             totalSent++;
                             Logger.Debug($"[BulkEmailSenderJob] Sent to {email.Email} via {chosen.Sender.Email}");
                         }
@@ -379,6 +390,27 @@ namespace AutoMail.BulkEmail.Jobs
             {
                 // Best-effort disconnect
             }
+        }
+
+        private static (string subject, string body, long? templateId) PickTemplate(
+            List<EmailTemplate> templates, EmailOperation operation, Random rng)
+        {
+            if (templates == null || templates.Count == 0)
+                return (operation.Subject, operation.Body, null);
+            if (templates.Count == 1)
+                return (templates[0].Subject, templates[0].Body, templates[0].Id);
+
+            var totalWeight = templates.Sum(t => t.Weight);
+            var roll = rng.Next(totalWeight);
+            var cumulative = 0;
+            foreach (var t in templates)
+            {
+                cumulative += t.Weight;
+                if (roll < cumulative)
+                    return (t.Subject, t.Body, t.Id);
+            }
+            var last = templates[templates.Count - 1];
+            return (last.Subject, last.Body, last.Id);
         }
 
         private class SenderQuota

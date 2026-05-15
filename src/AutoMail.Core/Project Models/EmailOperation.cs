@@ -33,4 +33,23 @@ namespace AutoMail.Project_Models
         [MaxLength(1000)]
         public string StopReason { get; set; }
     }
+
+    [Table("EmailTemplates")]
+    public class EmailTemplate : CreationAuditedEntity<long>
+    {
+        [MaxLength(200)]
+        public string Name { get; set; }
+
+        public long OperationId { get; set; }
+
+        [Required]
+        [MaxLength(500)]
+        public string Subject { get; set; }
+
+        [Required]
+        public string Body { get; set; }
+
+        [Range(1, 100)]
+        public int Weight { get; set; } = 1;
+    }
 }

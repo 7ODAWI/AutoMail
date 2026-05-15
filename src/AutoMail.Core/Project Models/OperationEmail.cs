@@ -28,6 +28,8 @@ namespace AutoMail.Project_Models
 
         public int? SenderId { get; set; }
 
+        public long? TemplateId { get; set; }
+
         [ForeignKey(nameof(OperationId))]
         public virtual EmailOperation Operation { get; set; }
 

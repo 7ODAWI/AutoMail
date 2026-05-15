@@ -32,17 +32,20 @@ namespace AutoMail.BulkEmail
         private readonly IRepository<OperationEmail, long> _operationEmailRepository;
         private readonly IRepository<EmailSender, int> _senderRepository;
         private readonly IBackgroundJobManager _backgroundJobManager;
+        private readonly IRepository<EmailTemplate, long> _templateRepository;
 
         public EmailOperationAppService(
             IRepository<EmailOperation, long> operationRepository,
             IRepository<OperationEmail, long> operationEmailRepository,
             IRepository<EmailSender, int> senderRepository,
-            IBackgroundJobManager backgroundJobManager)
+            IBackgroundJobManager backgroundJobManager,
+            IRepository<EmailTemplate, long> templateRepository)
         {
             _operationRepository = operationRepository;
             _operationEmailRepository = operationEmailRepository;
             _senderRepository = senderRepository;
             _backgroundJobManager = backgroundJobManager;
+            _templateRepository = templateRepository;
         }
 
         // ------------------------------------------------------------------ //
@@ -154,6 +157,11 @@ namespace AutoMail.BulkEmail
                     .ToDictionaryAsync(s => s.Id, s => s.Email)
                 : new Dictionary<int, string>();
 
+            var templates = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == operationId)
+                .OrderBy(t => t.Id)
+                .ToListAsync();
+
             var retryableCount = emails.Count(e => e.Status == SendStatus.Failed && e.RetryCount < MaxRetries);
 
             return new OperationDetailDto
@@ -171,6 +179,7 @@ namespace AutoMail.BulkEmail
                 StartedAt = operation.StartedAt,
                 CompletedAt = operation.CompletedAt,
                 StopReason = operation.StopReason,
+                Templates = templates.Select(MapToTemplateDto).ToList(),
                 Emails = emails.Select(e => new OperationEmailDto
                 {
                     Email = e.Email,
@@ -374,6 +383,69 @@ namespace AutoMail.BulkEmail
         }
 
         // ------------------------------------------------------------------ //
+        //  Template CRUD
+        // ------------------------------------------------------------------ //
+
+        public async Task<EmailTemplateDto> AddTemplateAsync(CreateTemplateInput input)
+        {
+            var operation = await _operationRepository.GetAsync(input.OperationId);
+            if (operation.Status == OperationStatus.InProgress)
+                throw new UserFriendlyException("Cannot add templates to an in-progress operation.");
+
+            var template = new EmailTemplate
+            {
+                OperationId = input.OperationId,
+                Name = input.Name?.Trim(),
+                Subject = input.Subject?.Trim(),
+                Body = input.Body,
+                Weight = input.Weight
+            };
+
+            await _templateRepository.InsertAsync(template);
+            await CurrentUnitOfWork.SaveChangesAsync();
+            return MapToTemplateDto(template);
+        }
+
+        public async Task<EmailTemplateDto> UpdateTemplateAsync(UpdateTemplateInput input)
+        {
+            var template = await _templateRepository.GetAsync(input.Id);
+            var operation = await _operationRepository.GetAsync(template.OperationId);
+            if (operation.Status == OperationStatus.InProgress)
+                throw new UserFriendlyException("Cannot edit templates of an in-progress operation.");
+
+            template.Name = input.Name?.Trim();
+            template.Subject = input.Subject?.Trim();
+            template.Body = input.Body;
+            template.Weight = input.Weight;
+
+            await _templateRepository.UpdateAsync(template);
+            await CurrentUnitOfWork.SaveChangesAsync();
+            return MapToTemplateDto(template);
+        }
+
+        public async Task DeleteTemplateAsync(long templateId)
+        {
+            var template = await _templateRepository.GetAsync(templateId);
+            var operation = await _operationRepository.GetAsync(template.OperationId);
+            if (operation.Status == OperationStatus.InProgress)
+                throw new UserFriendlyException("Cannot delete templates from an in-progress operation.");
+
+            // Null out TemplateId on any sent emails that referenced this template
+            // (FK uses NoAction to avoid SQL Server multiple-cascade-paths error)
+            var referencingEmails = await _operationEmailRepository.GetAll()
+                .Where(e => e.TemplateId == templateId)
+                .ToListAsync();
+            foreach (var email in referencingEmails)
+            {
+                email.TemplateId = null;
+                await _operationEmailRepository.UpdateAsync(email);
+            }
+
+            await _templateRepository.DeleteAsync(templateId);
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+
+        // ------------------------------------------------------------------ //
         //  Private Helpers
         // ------------------------------------------------------------------ //
 
@@ -394,6 +466,9 @@ namespace AutoMail.BulkEmail
                 StopReason = op.StopReason
             };
         }
+
+        private static EmailTemplateDto MapToTemplateDto(EmailTemplate t) =>
+            new EmailTemplateDto { Id = t.Id, Name = t.Name, Subject = t.Subject, Body = t.Body, Weight = t.Weight };
 
         private static IReadOnlyList<string> ParseExcel(Stream stream, int columnIndex)
         {

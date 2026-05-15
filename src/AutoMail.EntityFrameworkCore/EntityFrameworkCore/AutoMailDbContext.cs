@@ -12,6 +12,7 @@ public class AutoMailDbContext : AbpZeroDbContext<Tenant, Role, User, AutoMailDb
     public DbSet<EmailOperation> EmailOperations { get; set; }
     public DbSet<OperationEmail> OperationEmails { get; set; }
     public DbSet<EmailSender> EmailSenders { get; set; }
+    public DbSet<EmailTemplate> EmailTemplates { get; set; }
 
     public AutoMailDbContext(DbContextOptions<AutoMailDbContext> options)
         : base(options)
@@ -42,12 +43,28 @@ public class AutoMailDbContext : AbpZeroDbContext<Tenant, Role, User, AutoMailDb
              .WithMany()
              .HasForeignKey(e => e.SenderId)
              .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne<EmailTemplate>()
+             .WithMany()
+             .HasForeignKey(e => e.TemplateId)
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<EmailSender>(b =>
         {
             b.ToTable("EmailSenders");
             b.HasIndex(e => e.Email).IsUnique().HasFilter("[IsDeleted] = 0");
+        });
+
+        modelBuilder.Entity<EmailTemplate>(b =>
+        {
+            b.ToTable("EmailTemplates");
+            b.HasIndex(e => e.OperationId);
+            b.HasOne<EmailOperation>()
+             .WithMany()
+             .HasForeignKey(e => e.OperationId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
