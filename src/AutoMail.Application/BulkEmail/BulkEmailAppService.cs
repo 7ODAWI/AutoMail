@@ -325,10 +325,11 @@ namespace AutoMail.BulkEmail
         {
             var operation = await _operationRepository.GetAsync(operationId);
 
-            if (operation.Status != OperationStatus.InProgress)
-                throw new UserFriendlyException("Only in-progress operations can be paused.");
+            if (operation.Status != OperationStatus.InProgress && operation.Status != OperationStatus.Pending)
+                throw new UserFriendlyException("Only pending or in-progress operations can be paused.");
 
             operation.Status = OperationStatus.Paused;
+            operation.StopReason = "Paused by user.";
             await _operationRepository.UpdateAsync(operation);
             await CurrentUnitOfWork.SaveChangesAsync();
         }
@@ -341,11 +342,14 @@ namespace AutoMail.BulkEmail
         {
             var operation = await _operationRepository.GetAsync(operationId);
 
-            if (operation.Status != OperationStatus.InProgress && operation.Status != OperationStatus.Paused)
-                throw new UserFriendlyException("Only in-progress or paused operations can be stopped.");
+            if (operation.Status != OperationStatus.InProgress
+                && operation.Status != OperationStatus.Paused
+                && operation.Status != OperationStatus.Pending)
+                throw new UserFriendlyException("Only pending, in-progress or paused operations can be stopped.");
 
             operation.Status = OperationStatus.Cancelled;
             operation.CompletedAt = Abp.Timing.Clock.Now;
+            operation.StopReason = "Stopped by user.";
             await _operationRepository.UpdateAsync(operation);
             await CurrentUnitOfWork.SaveChangesAsync();
         }
@@ -378,6 +382,58 @@ namespace AutoMail.BulkEmail
             operation.Status = OperationStatus.Pending;
             operation.CompletedAt = null;
             operation.StopReason = null;
+            await _operationRepository.UpdateAsync(operation);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
+                new BulkEmailJobArgs { OperationId = operationId });
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Complete Send for Unsent Emails (Pending + Failed)
+        // ------------------------------------------------------------------ //
+
+        public async Task CompleteUnsentEmailsAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            if (operation.Status == OperationStatus.InProgress)
+                throw new UserFriendlyException("Operation is already in progress.");
+
+            var hasActiveSenders = await _senderRepository.GetAll()
+                .AnyAsync(s => s.IsActive);
+            if (!hasActiveSenders)
+                throw new UserFriendlyException("No active email senders configured.");
+
+            var unsentEmails = await _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId && e.Status != SendStatus.Success)
+                .ToListAsync();
+
+            if (!unsentEmails.Any())
+                throw new UserFriendlyException("All emails were already sent successfully.");
+
+            // Reset all unsent items to Pending so they can be completed in one run.
+            foreach (var email in unsentEmails)
+            {
+                email.Status = SendStatus.Pending;
+                email.ErrorMessage = null;
+                email.SentAt = null;
+                if (email.RetryCount >= MaxRetries)
+                {
+                    email.RetryCount = 0;
+                }
+
+                await _operationEmailRepository.UpdateAsync(email);
+            }
+
+            var sentCount = await _operationEmailRepository.GetAll()
+                .CountAsync(e => e.OperationId == operationId && e.Status == SendStatus.Success);
+
+            operation.Status = OperationStatus.Pending;
+            operation.CompletedAt = null;
+            operation.StopReason = null;
+            operation.SentCount = sentCount;
+            operation.FailedCount = 0;
             await _operationRepository.UpdateAsync(operation);
             await CurrentUnitOfWork.SaveChangesAsync();
 

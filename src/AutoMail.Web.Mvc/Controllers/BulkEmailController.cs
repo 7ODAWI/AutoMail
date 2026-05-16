@@ -1,6 +1,7 @@
 using AutoMail.BulkEmail;
 using AutoMail.BulkEmail.Dto;
 using AutoMail.Controllers;
+using Abp.UI;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
@@ -76,36 +77,51 @@ namespace AutoMail.Web.Controllers
         [HttpPost]
         public async Task<JsonResult> Pause([FromBody] OperationControlInput input)
         {
-            await _operationAppService.PauseOperationAsync(input.Id);
+            await _operationAppService.PauseOperationAsync(GetRequiredOperationId(input));
             return Json(new { message = "Operation paused." });
         }
 
         [HttpPost]
         public async Task<JsonResult> Stop([FromBody] OperationControlInput input)
         {
-            await _operationAppService.StopOperationAsync(input.Id);
+            await _operationAppService.StopOperationAsync(GetRequiredOperationId(input));
             return Json(new { message = "Operation stopped." });
         }
 
         [HttpPost]
         public async Task<JsonResult> Reactivate([FromBody] OperationControlInput input)
         {
-            await _operationAppService.ReactivateOperationAsync(input.Id);
+            await _operationAppService.ReactivateOperationAsync(GetRequiredOperationId(input));
             return Json(new { message = "Operation reactivated and job re-queued." });
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> CompleteSend([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.CompleteUnsentEmailsAsync(GetRequiredOperationId(input));
+            return Json(new { message = "Unsent emails were queued for completion." });
         }
 
         [HttpPost]
         public async Task<JsonResult> CloneOperation([FromBody] OperationControlInput input)
         {
-            var result = await _operationAppService.CloneOperationAsync(input.Id);
+            var result = await _operationAppService.CloneOperationAsync(GetRequiredOperationId(input));
             return Json(result);
         }
 
         [HttpPost]
         public async Task<JsonResult> Start([FromBody] OperationControlInput input)
         {
-            await _operationAppService.StartOperationAsync(input.Id);
+            await _operationAppService.StartOperationAsync(GetRequiredOperationId(input));
             return Json(new { message = "Operation started." });
+        }
+
+        private static long GetRequiredOperationId(OperationControlInput input)
+        {
+            if (input == null || input.Id <= 0)
+                throw new UserFriendlyException("Invalid operation id.");
+
+            return input.Id;
         }
 
         public ActionResult EditPage(long id)

@@ -168,6 +168,10 @@
             }
             if (st === 'paused' || st === 'cancelled' || st === 'partiallysent') {
                 html += '<button class="btn btn-sm btn-success mr-1 btn-reactivate" data-id="' + id + '" title="Reactivate"><i class="fas fa-play"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-success mr-1 btn-complete-send" data-id="' + id + '" title="Complete Unsent"><i class="fas fa-check-double"></i></button>';
+            }
+            if (st === 'failed') {
+                html += '<button class="btn btn-sm btn-outline-success mr-1 btn-complete-send" data-id="' + id + '" title="Complete Unsent"><i class="fas fa-check-double"></i></button>';
             }
             if (st === 'pending') {
                 html += '<button class="btn btn-sm btn-success mr-1 btn-start-draft" data-id="' + id + '" title="Start"><i class="fas fa-rocket"></i></button>';
@@ -340,6 +344,17 @@
                     confirmButtonColor: '#28a745',
                     confirmButtonText: '<i class="fas fa-rocket"></i> Start!'
                 }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("Start", "BulkEmail")', id, 'Started'); });
+            });
+
+            $(document).off('click', '.btn-complete-send').on('click', '.btn-complete-send', function () {
+                var id = $(this).data('id');
+                Swal.fire({
+                    title: 'Complete Unsent Emails?',
+                    text: 'This will queue sending for all unsent emails (pending + failed) in this operation.',
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonColor: '#28a745',
+                    confirmButtonText: '<i class="fas fa-check-double"></i> Complete Send'
+                }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("CompleteSend", "BulkEmail")', id, 'Queued'); });
             });
 
             $(document).off('click', '.btn-clone').on('click', '.btn-clone', function () {
