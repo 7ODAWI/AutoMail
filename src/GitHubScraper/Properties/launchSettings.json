@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "GitHubScraper": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:62451;http://localhost:62452"
+    }
+  }
+}

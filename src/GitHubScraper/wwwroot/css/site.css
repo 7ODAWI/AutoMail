@@ -1,0 +1,232 @@
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+#app-wrapper {
+    min-height: 100vh;
+}
+
+#sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: #1a1d23;
+    color: #c9d1d9;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 100;
+}
+
+.sidebar-brand {
+    padding: 1.25rem 1.25rem 1rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f0f6fc;
+    border-bottom: 1px solid #30363d;
+    letter-spacing: 0.02em;
+}
+
+.sidebar-nav {
+    list-style: none;
+    padding: 0.75rem 0;
+    margin: 0;
+    flex-grow: 1;
+}
+
+.sidebar-nav li {
+    padding: 0 0.5rem;
+    margin-bottom: 2px;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    padding: 0.55rem 0.85rem;
+    color: #8b949e;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-link:hover {
+    background: #30363d;
+    color: #f0f6fc;
+}
+
+.sidebar-link.active {
+    background: #0d419d;
+    color: #f0f6fc;
+}
+
+.sidebar-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #30363d;
+    font-size: 0.78rem;
+}
+
+#main-content {
+    min-height: 100vh;
+    background: #f8f9fa;
+}
+
+/* ── Status badges ────────────────────────────────────────────────────────── */
+.status-badge {
+    font-size: 0.78rem;
+    padding: 0.35em 0.65em;
+    border-radius: 1rem;
+}
+
+.status-idle       { background: #6c757d !important; color: #fff !important; }
+.status-running    { background: #198754 !important; color: #fff !important; }
+.status-completed  { background: #0d6efd !important; color: #fff !important; }
+.status-failed     { background: #dc3545 !important; color: #fff !important; }
+.status-cancelled  { background: #fd7e14 !important; color: #fff !important; }
+
+/* ── Operation cards ─────────────────────────────────────────────────────── */
+.op-card {
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.op-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.09);
+    transform: translateY(-2px);
+}
+
+.op-card .card-header {
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    border-radius: 10px 10px 0 0 !important;
+}
+
+.op-card .card-footer {
+    background: #fafafa;
+    border-top: 1px solid #f0f0f0;
+    border-radius: 0 0 10px 10px !important;
+}
+
+/* ── Stats mini (card grid) ───────────────────────────────────────────────── */
+.stat-mini {
+    padding: 0.4rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.stat-mini-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.stat-mini-label {
+    font-size: 0.7rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* ── Stat cards (detail page) ────────────────────────────────────────────── */
+.stat-card {
+    border-radius: 10px;
+    border-width: 2px !important;
+}
+
+.stat-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.empty-state {
+    border: 2px dashed #dee2e6;
+    border-radius: 12px;
+    background: #fff;
+}
+
+/* ── Tag input ─────────────────────────────────────────────────────────────── */
+.tag-input-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    padding: 6px 10px;
+    min-height: 44px;
+    background: #fff;
+    cursor: text;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tag-input-container:focus-within {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.25);
+}
+
+.tag-list {
+    display: contents;
+}
+
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #0d6efd;
+    color: #fff;
+    padding: 3px 10px 3px 10px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.tag-badge .tag-remove {
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.tag-badge .tag-remove:hover { opacity: 1; }
+
+.tag-text-input {
+    border: none;
+    outline: none;
+    flex: 1;
+    min-width: 160px;
+    font-size: 0.9rem;
+    background: transparent;
+    padding: 2px 0;
+}
+
+/* ── Results table ────────────────────────────────────────────────────────── */
+.results-table-wrapper {
+    max-height: 520px;
+    overflow-y: auto;
+}
+
+/* ── Confidence badges ────────────────────────────────────────────────────── */
+.confidence-high   { background: #198754; color: #fff; }
+.confidence-medium { background: #ffc107; color: #212529; }
+.confidence-low    { background: #6c757d; color: #fff; }
+
+/* ── Required field label indicator ──────────────────────────────────────── */
+.required-label::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* ── Filter tags ──────────────────────────────────────────────────────────── */
+.filter-tags {
+    line-height: 1.8;
+}

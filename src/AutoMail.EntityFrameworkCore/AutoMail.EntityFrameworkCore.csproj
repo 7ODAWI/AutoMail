@@ -21,4 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AutoMail.Core\AutoMail.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Migrations\" />
+  </ItemGroup>
 </Project>

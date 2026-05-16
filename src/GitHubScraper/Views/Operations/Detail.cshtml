@@ -1,0 +1,290 @@
+@model GitHubScraper.ViewModels.Operations.OperationDetailViewModel
+@using GitHubScraper.Models.Enums
+@{
+    ViewData["Title"] = Model.Name;
+    var isRunning = Model.Status == OperationStatus.Running;
+    var totalPages = (int)Math.Ceiling((double)Model.TotalResults / Model.PageSize);
+}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h4 class="mb-1">@Model.Name</h4>
+            <span class="badge status-badge status-@Model.Status.ToString().ToLower() fs-6" id="page-status-badge">
+                @if (isRunning)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                @Model.Status
+            </span>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        @if (Model.Status != OperationStatus.Running)
+        {
+            <form asp-action="Start" asp-route-id="@Model.Id" method="post">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-play-fill me-1"></i>Start
+                </button>
+            </form>
+        }
+        else
+        {
+            <form asp-action="Stop" asp-route-id="@Model.Id" method="post">
+                <button type="submit" class="btn btn-warning"
+                        onclick="return confirmAction('Stop this operation?', this.form)">
+                    <i class="bi bi-stop-circle me-1"></i>Stop
+                </button>
+            </form>
+        }
+        <a asp-action="Export" asp-route-id="@Model.Id" class="btn btn-outline-success">
+            <i class="bi bi-download me-1"></i>Export CSV
+        </a>
+        <form asp-action="Delete" asp-route-id="@Model.Id" method="post" class="d-inline">
+            <button type="submit" class="btn btn-outline-danger"
+                    onclick="return confirmAction('Delete this operation and ALL its results permanently?', this.form)">
+                <i class="bi bi-trash3 me-1"></i>Delete
+            </button>
+        </form>
+    </div>
+</div>
+
+@if (isRunning && !string.IsNullOrEmpty(Model.CurrentUser))
+{
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-4" id="running-alert">
+        <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+        <div>
+            <strong>Scraping in progress</strong> —
+            Current user: <code id="live-current-user">@Model.CurrentUser</code>
+            @if (!string.IsNullOrEmpty(Model.CurrentQuery))
+            {
+                <span class="ms-2 text-muted small">Query: <span id="live-current-query">@Model.CurrentQuery</span></span>
+            }
+        </div>
+    </div>
+}
+
+<!-- Stats cards -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat-card border-success">
+            <div class="card-body text-center">
+                <div class="stat-value text-success" id="stat-emails">@Model.EmailsFound</div>
+                <div class="stat-label">Emails Found</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat-card border-primary">
+            <div class="card-body text-center">
+                <div class="stat-value text-primary" id="stat-profiles">@Model.ProfilesScanned</div>
+                <div class="stat-label">Profiles Scanned</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat-card border-danger">
+            <div class="card-body text-center">
+                <div class="stat-value text-danger" id="stat-failures">@Model.Failures</div>
+                <div class="stat-label">Failures</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card stat-card border-warning">
+            <div class="card-body text-center">
+                <div class="stat-value text-warning" id="stat-ratelimit">
+                    @(Model.RateLimitRemaining >= 0 ? Model.RateLimitRemaining.ToString() : "—")
+                </div>
+                <div class="stat-label">Rate Limit Left</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters & Timestamps -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-funnel me-1"></i>Configuration</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="small text-muted mb-1">Keywords</div>
+                @if (Model.Keywords.Any())
+                {
+                    foreach (var kw in Model.Keywords)
+                    {
+                        <span class="badge bg-light text-dark border me-1">@kw</span>
+                    }
+                }
+                else
+                {
+                    <span class="text-muted small">All keywords</span>
+                }
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted mb-1">Locations</div>
+                @if (Model.Locations.Any())
+                {
+                    foreach (var loc in Model.Locations)
+                    {
+                        <span class="badge bg-light text-dark border me-1">@loc</span>
+                    }
+                }
+                else
+                {
+                    <span class="text-muted small">All locations</span>
+                }
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted mb-1">Min Followers</div>
+                <span class="fw-semibold">@Model.MinFollowers</span>
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted mb-1">Created</div>
+                <span>@Model.CreatedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm")</span>
+            </div>
+            @if (Model.StartedAt.HasValue)
+            {
+                <div class="col-md-4">
+                    <div class="small text-muted mb-1">Started</div>
+                    <span>@Model.StartedAt.Value.ToLocalTime().ToString("MMM d, yyyy HH:mm")</span>
+                </div>
+            }
+            @if (Model.CompletedAt.HasValue)
+            {
+                <div class="col-md-4">
+                    <div class="small text-muted mb-1">Completed</div>
+                    <span>@Model.CompletedAt.Value.ToLocalTime().ToString("MMM d, yyyy HH:mm")</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Results table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <i class="bi bi-envelope-at me-1"></i>
+            Results
+            <span class="badge bg-secondary ms-1" id="results-count">@Model.TotalResults</span>
+        </div>
+        <div class="d-flex gap-2">
+            <input type="text" id="results-search" class="form-control form-control-sm"
+                   placeholder="Filter by email / username..." style="width:230px"
+                   value="" />
+            <button class="btn btn-sm btn-outline-secondary" id="refresh-results" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive results-table-wrapper">
+        <table class="table table-hover table-sm mb-0" id="results-table">
+            <thead class="table-dark sticky-top">
+                <tr>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Confidence</th>
+                    <th>Location</th>
+                    <th>Followers</th>
+                    <th>Found</th>
+                </tr>
+            </thead>
+            <tbody id="results-tbody">
+                @foreach (var r in Model.Results)
+                {
+                    <tr>
+                        <td>
+                            <a href="@r.ProfileUrl" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                                <i class="bi bi-github me-1 text-muted"></i>@r.Username
+                            </a>
+                        </td>
+                        <td class="text-muted small">@r.Name</td>
+                        <td><a href="mailto:@r.Email" class="text-decoration-none">@r.Email</a></td>
+                        <td>
+                            <span class="badge confidence-@(r.EmailConfidence?.ToLower() ?? "low")">
+                                @r.EmailConfidence
+                            </span>
+                        </td>
+                        <td class="text-muted small">@r.Location</td>
+                        <td class="text-muted small">@r.Followers.ToString("N0")</td>
+                        <td class="text-muted small">@r.FoundAtUtc.ToLocalTime().ToString("MMM d HH:mm")</td>
+                    </tr>
+                }
+                @if (!Model.Results.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox me-2"></i>No results yet
+                            @if (isRunning) { <span>— scraping in progress...</span> }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (totalPages > 1)
+    {
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                Page @Model.Page of @totalPages ·
+                @Model.TotalResults.ToString("N0") total results
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    @if (Model.Page > 1)
+                    {
+                        <li class="page-item">
+                            <a asp-action="Detail" asp-route-id="@Model.Id" asp-route-page="@(Model.Page - 1)"
+                               class="page-link">Previous</a>
+                        </li>
+                    }
+                    @for (var p = Math.Max(1, Model.Page - 2); p <= Math.Min(totalPages, Model.Page + 2); p++)
+                    {
+                        <li class="page-item @(p == Model.Page ? "active" : "")">
+                            <a asp-action="Detail" asp-route-id="@Model.Id" asp-route-page="@p"
+                               class="page-link">@p</a>
+                        </li>
+                    }
+                    @if (Model.Page < totalPages)
+                    {
+                        <li class="page-item">
+                            <a asp-action="Detail" asp-route-id="@Model.Id" asp-route-page="@(Model.Page + 1)"
+                               class="page-link">Next</a>
+                        </li>
+                    }
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@section Scripts {
+<script>
+    const OPERATION_ID = '@Model.Id';
+    const IS_RUNNING = @isRunning.ToString().ToLower();
+
+    if (IS_RUNNING) {
+        startStatsPolling(OPERATION_ID, 2000);
+    }
+
+    // Refresh results table on demand
+    document.getElementById('refresh-results')?.addEventListener('click', () => {
+        loadResults(OPERATION_ID, 1, document.getElementById('results-search').value);
+    });
+
+    // Filter as you type (debounced)
+    let filterTimer;
+    document.getElementById('results-search')?.addEventListener('input', e => {
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(() => {
+            loadResults(OPERATION_ID, 1, e.target.value);
+        }, 400);
+    });
+</script>
+}

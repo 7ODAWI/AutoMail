@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace AutoMail.Migrations
 {
     /// <inheritdoc />
-    public partial class Initail : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -486,6 +486,8 @@ namespace AutoMail.Migrations
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     DailyLimit = table.Column<int>(type: "int", nullable: false),
                     DelayBetweenEmailsMs = table.Column<int>(type: "int", nullable: false),
+                    BlockedUntilUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    BlockReason = table.Column<string>(type: "nvarchar(1024)", maxLength: 1024, nullable: true),
                     CreationTime = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatorUserId = table.Column<long>(type: "bigint", nullable: true),
                     LastModificationTime = table.Column<DateTime>(type: "datetime2", nullable: true),

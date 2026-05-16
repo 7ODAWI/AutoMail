@@ -1,0 +1,106 @@
+@model GitHubScraper.ViewModels.Operations.CreateOperationViewModel
+@{
+    ViewData["Title"] = "New Operation";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex align-items-center mb-4">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm me-3">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <h4 class="mb-0"><i class="bi bi-plus-circle me-2 text-primary"></i>New Scraping Operation</h4>
+        </div>
+
+        <form asp-action="Create" method="post">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+
+                    <!-- Operation Name -->
+                    <div class="mb-4">
+                        <label asp-for="Name" class="form-label fw-semibold required-label"></label>
+                        <input asp-for="Name" class="form-control" placeholder="e.g. React Developers Canada" autofocus />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                    </div>
+
+                    <hr class="my-4" />
+                    <h6 class="text-muted mb-3"><i class="bi bi-funnel me-1"></i>Search Filters</h6>
+
+                    <!-- Keywords -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Keywords</label>
+                        <p class="text-muted small mb-2">
+                            Job titles or technologies to search for. Leave empty to search all users.
+                        </p>
+                        <div class="tag-input-container" id="keywords-container">
+                            <div class="tag-list" id="keywords-tags"></div>
+                            <input type="text" class="tag-text-input" id="keywords-input"
+                                   placeholder="Type and press Enter or , to add..." />
+                        </div>
+                        <input type="hidden" asp-for="KeywordsRaw" id="KeywordsRaw" />
+                        <div class="form-text">Examples: Full Stack, React Developer, ASP.NET, Python</div>
+                    </div>
+
+                    <!-- Locations -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Locations</label>
+                        <p class="text-muted small mb-2">
+                            Cities or countries to filter by. Leave empty to search globally.
+                        </p>
+                        <div class="tag-input-container" id="locations-container">
+                            <div class="tag-list" id="locations-tags"></div>
+                            <input type="text" class="tag-text-input" id="locations-input"
+                                   placeholder="Type and press Enter or , to add..." />
+                        </div>
+                        <input type="hidden" asp-for="LocationsRaw" id="LocationsRaw" />
+                        <div class="form-text">Examples: Canada, Toronto, United Kingdom, Germany</div>
+                    </div>
+
+                    <!-- Min Followers -->
+                    <div class="mb-4">
+                        <label asp-for="MinFollowers" class="form-label fw-semibold"></label>
+                        <input asp-for="MinFollowers" type="number" min="0" class="form-control" style="max-width:200px" />
+                        <span asp-validation-for="MinFollowers" class="text-danger small"></span>
+                        <div class="form-text">Filter to users with at least this many followers. Set 0 to include everyone.</div>
+                    </div>
+
+                    <hr class="my-4" />
+                    <h6 class="text-muted mb-3"><i class="bi bi-key me-1"></i>Authentication</h6>
+
+                    <!-- GitHub Token -->
+                    <div class="mb-4">
+                        <label asp-for="GitHubToken" class="form-label fw-semibold"></label>
+                        <input asp-for="GitHubToken" type="password" class="form-control"
+                               placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                        <span asp-validation-for="GitHubToken" class="text-danger small"></span>
+                        <div class="form-text">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Optional but strongly recommended. Without a token: ~10 requests/min.
+                            With a token: ~30 requests/min.
+                            <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">
+                                Generate a token <i class="bi bi-box-arrow-up-right small"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="card-footer d-flex gap-2 justify-content-end py-3 px-4">
+                    <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" name="StartImmediately" value="false" class="btn btn-outline-primary">
+                        <i class="bi bi-save me-1"></i>Create Only
+                    </button>
+                    <button type="submit" name="StartImmediately" value="true" class="btn btn-primary">
+                        <i class="bi bi-play-fill me-1"></i>Create &amp; Start
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    initTagInput('keywords-container', 'keywords-input', 'keywords-tags', 'KeywordsRaw');
+    initTagInput('locations-container', 'locations-input', 'locations-tags', 'LocationsRaw');
+</script>
+}
