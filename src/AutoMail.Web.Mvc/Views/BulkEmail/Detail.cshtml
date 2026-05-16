@@ -26,7 +26,6 @@
             position: fixed; inset: 0;
             background: rgba(0,0,0,.35);
             z-index: 9999;
-                $('#tpl-body').summernote('code', t.body || '');
             justify-content: center;
         }
         #page-overlay.show { display: flex; }
@@ -34,14 +33,10 @@
 
         .email-table td { font-size: .9rem; }
         .body-preview { max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; padding: 12px; border-radius: 4px; background: #f8f9fa; }
-                var bodyHtml = $('#tpl-body').summernote('code');
-                var body = $.trim($('<div>').html(bodyHtml).text());
         /* Highlight new rows added via SignalR */
         @@keyframes row-flash { from { background: #d4edda; } to { background: transparent; } }
         tr.row-new { animation: row-flash 1.5s ease-out; }
-                    ? { id: id, name: $('#tpl-name').val().trim(), subject: subject, body: bodyHtml, weight: parseInt($('#tpl-weight').val()) || 1 }
-                    : { operationId: opId, name: $('#tpl-name').val().trim(), subject: subject, body: bodyHtml, weight: parseInt($('#tpl-weight').val()) || 1 };
-}
+    </style>
 
 <div id="page-overlay">
     <div class="spinner-border text-light spinner-border-lg" role="status">

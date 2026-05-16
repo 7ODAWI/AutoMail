@@ -70,36 +70,18 @@
         <div class="card-body">
             <div class="alert alert-info mb-3" id="current-recipients-info">
             </div>
-
-        $('#tpl-body').summernote({
-            height: 220,
-            placeholder: 'Design this template body...',
-            toolbar: [
-                ['style', ['style']],
-                ['font', ['bold', 'italic', 'underline', 'strikethrough', 'clear']],
-                ['fontname', ['fontname']], ['fontsize', ['fontsize']], ['color', ['color']],
-                ['para', ['ul', 'ol', 'paragraph']], ['table', ['table']],
-                ['insert', ['link', 'picture', 'hr']], ['view', ['fullscreen', 'codeview', 'undo', 'redo']]
-            ]
-        });
             <div class="border-top pt-3">
-            $('#tpl-id').val(''); $('#tpl-name').val(''); $('#tpl-subject').val(''); $('#tpl-body').summernote('code', ''); $('#tpl-weight').val(1);
                 <p class="text-muted small mb-2">Upload a new .xlsx or .csv file to replace all existing recipients. Leave empty to keep current ones.</p>
                 <div class="drop-zone" id="drop-zone">
                     <div class="dz-icon"><i class="fas fa-cloud-upload-alt"></i></div>
                     <div class="dz-label">Drop file here or <strong>click to browse</strong></div>
-            $('#tpl-body').summernote('code', t.body || ''); $('#tpl-weight').val(t.weight);
                     <input type="file" id="file-input" accept=".xlsx,.csv" style="display:none" />
                 </div>
                 <div id="file-name-display" class="mt-2 text-info font-weight-bold" style="display:none"></div>
                 <div class="form-group mt-2 mb-0" id="col-index-row" style="display:none">
-            var bodyHtml = $('#tpl-body').summernote('code');
-            var body    = $.trim($('<div>').html(bodyHtml).text());
                     <input type="number" class="form-control" id="email-column-index" value="0" min="0" max="99" style="max-width:160px" />
                 </div>
             </div>
-                ? { id: id, name: $('#tpl-name').val().trim(), subject: subject, body: bodyHtml, weight: parseInt($('#tpl-weight').val()) || 1 }
-                : { operationId: opId, name: $('#tpl-name').val().trim(), subject: subject, body: bodyHtml, weight: parseInt($('#tpl-weight').val()) || 1 };
 
     <!-- ═══════════ Compose Message ═══════════ -->
     <div class="card card-success card-outline">
