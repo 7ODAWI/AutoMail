@@ -31,7 +31,7 @@ namespace AutoMail.BulkEmail.Dto
         [Range(1, 10000)]
         public int DailyLimit { get; set; } = 500;
 
-        [Range(0, 60000)]
+        [Range(0, 1800000)]
         public int DelayBetweenEmailsMs { get; set; } = 1000;
     }
 }

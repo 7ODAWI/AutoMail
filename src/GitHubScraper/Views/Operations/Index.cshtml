@@ -6,9 +6,20 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4 class="mb-0"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Operations Dashboard</h4>
-    <a asp-action="Create" class="btn btn-primary">
-        <i class="bi bi-plus-circle me-1"></i>New Operation
-    </a>
+    <div class="d-flex gap-2">
+        <form asp-action="StartAll" method="post" class="d-inline">
+            <button type="submit" class="btn btn-outline-primary"
+                    onclick="return confirmAction('Start all non-running operations?', this.form)">
+                <i class="bi bi-play-circle me-1"></i>Start All Operations
+            </button>
+        </form>
+        <a asp-action="ExportAllDistinct" class="btn btn-outline-success">
+            <i class="bi bi-download me-1"></i>Export All CSV (Distinct)
+        </a>
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i>New Operation
+        </a>
+    </div>
 </div>
 
 @if (!Model.Operations.Any())

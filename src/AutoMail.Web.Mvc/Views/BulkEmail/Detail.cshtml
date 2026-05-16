@@ -672,7 +672,7 @@
             $('#template-modal').modal('show');
         }
 
-        function openEditTpl(id) {
+        window.openEditTpl = function (id) {
             var t = templateCache.find(function (x) { return x.id === id; });
             if (!t) return;
             $('#tpl-id').val(t.id);
@@ -682,7 +682,7 @@
             $('#tpl-weight').val(t.weight);
             $('#tpl-modal-title').text('Edit Template');
             $('#template-modal').modal('show');
-        }
+        };
 
         function saveTpl() {
             var id = parseInt($('#tpl-id').val()) || 0;
@@ -715,7 +715,7 @@
             });
         }
 
-        function deleteTpl(id) {
+        window.deleteTpl = function (id) {
             Swal.fire({
                 title: 'Delete Template?', text: 'This template will be permanently removed.',
                 icon: 'warning', showCancelButton: true,
@@ -736,7 +736,7 @@
                     }
                 });
             });
-        }
+        };
 
         $('#btn-add-template').on('click', openAddTpl);
         $('#btn-save-tpl').on('click', saveTpl);

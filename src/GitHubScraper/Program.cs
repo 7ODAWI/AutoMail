@@ -6,6 +6,7 @@ using GitHubScraper.Models.Settings;
 using GitHubScraper.Infrastructure.Http;
 using Microsoft.Extensions.Http.Resilience;
 using GitHubScraper.Services;
+using GitHubScraper.Services.Search;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Options
 var githubOptions = builder.Configuration.GetSection("GitHub").Get<GitHubOptions>();
+if (githubOptions is null)
+    throw new InvalidOperationException("GitHub configuration section is missing or invalid.");
 builder.Services.AddSingleton(githubOptions!);
 
 // Utilities
@@ -45,6 +48,8 @@ builder.Services.AddHttpClient("Web", (sp, c) =>
 });
 
 // Application services
+builder.Services.AddSingleton<IGitHubSearchExpressionParser, GitHubSearchExpressionParser>();
+builder.Services.AddSingleton<IGitHubSearchQueryBuilder, GitHubSearchQueryBuilder>();
 builder.Services.AddSingleton<OperationManager>();
 builder.Services.AddTransient<DbWriterService>();
 

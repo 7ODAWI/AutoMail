@@ -6,6 +6,7 @@ using GitHubScraper.Models.Entities;
 using GitHubScraper.Models.Enums;
 using GitHubScraper.Models.Settings;
 using GitHubScraper.Pipeline;
+using GitHubScraper.Services.Search;
 using Microsoft.EntityFrameworkCore;
 
 namespace GitHubScraper.Services;
@@ -24,6 +25,7 @@ public sealed class OperationManager
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILoggerFactory _loggerFactory;
     private readonly GitHubOptions _githubOptions;
+    private readonly IGitHubSearchQueryBuilder _queryBuilder;
     private readonly ILogger<OperationManager> _logger;
 
     public OperationManager(
@@ -31,12 +33,14 @@ public sealed class OperationManager
         IHttpClientFactory httpFactory,
         ILoggerFactory loggerFactory,
         GitHubOptions githubOptions,
+        IGitHubSearchQueryBuilder queryBuilder,
         ILogger<OperationManager> logger)
     {
         _scopeFactory  = scopeFactory;
         _httpFactory   = httpFactory;
         _loggerFactory = loggerFactory;
         _githubOptions = githubOptions;
+        _queryBuilder  = queryBuilder;
         _logger        = logger;
     }
 
@@ -197,7 +201,7 @@ public sealed class OperationManager
             var log = _loggerFactory;
 
             var dbWriter     = new DbWriterService(_scopeFactory, log.CreateLogger<DbWriterService>());
-            var searchSvc    = new GitHubSearchService(_httpFactory, _githubOptions, op.GitHubToken, keywords, locations, op.MinFollowers, checkpoint, stats, log.CreateLogger<GitHubSearchService>());
+            var searchSvc    = new GitHubSearchService(_httpFactory, _githubOptions, _queryBuilder, op.GitHubToken, keywords, locations, op.MinFollowers, checkpoint, stats, log.CreateLogger<GitHubSearchService>());
             var profileSvc   = new ProfileParserService(_httpFactory, _githubOptions, stats, log.CreateLogger<ProfileParserService>());
             var emailSvc     = new EmailExtractionService(stats, log.CreateLogger<EmailExtractionService>());
 
