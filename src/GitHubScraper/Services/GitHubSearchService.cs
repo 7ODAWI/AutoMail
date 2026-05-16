@@ -232,38 +232,70 @@ public sealed class GitHubSearchService : IGitHubSearchService
             yield break;
         }
 
-        var kws = _keywords.Length == 0 ? new[] { string.Empty } : _keywords;
-        var locs = _locations.Length == 0 ? new[] { string.Empty } : _locations;
+        var keywordExpression = BuildOrExpression(
+            _keywords
+                .Select(NormalizeKeywordExpression)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!));
 
-        foreach (var keyword in kws)
-        foreach (var location in locs)
+        var locationExpression = BuildOrExpression(
+            _locations
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => $"location:\"{EscapeQuoted(x.Trim())}\""));
+
+        var expression = CombineAnd(keywordExpression, locationExpression);
+
+        var qualifiers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (_minFollowers > 0)
+            qualifiers["followers"] = $">={_minFollowers}";
+
+        GitHubBuiltQuery built;
+        try
         {
-            var qualifiers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrWhiteSpace(location))
-                qualifiers["location"] = location;
-            if (_minFollowers > 0)
-                qualifiers["followers"] = $">={_minFollowers}";
-
-            var expression = NormalizeKeywordExpression(keyword);
-
-            GitHubBuiltQuery built;
-            try
-            {
-                built = _queryBuilder.Build(new GitHubQueryBuildRequest(expression, qualifiers));
-            }
-            catch (GitHubSearchQueryException ex)
-            {
-                _logger.LogWarning(ex,
-                    "Skipping malformed query. Keyword='{Keyword}' Location='{Location}'",
-                    keyword,
-                    location);
-                _stats.IncrementFailures();
-                continue;
-            }
-
-            yield return built;
+            built = _queryBuilder.Build(new GitHubQueryBuildRequest(expression, qualifiers));
         }
+        catch (GitHubSearchQueryException ex)
+        {
+            _logger.LogWarning(ex,
+                "Skipping malformed combined query. Expression='{Expression}'",
+                expression);
+            _stats.IncrementFailures();
+            yield break;
+        }
+
+        yield return built;
     }
+
+    private static string? CombineAnd(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left))
+            return right;
+        if (string.IsNullOrWhiteSpace(right))
+            return left;
+
+        return $"({left}) AND ({right})";
+    }
+
+    private static string? BuildOrExpression(IEnumerable<string> terms)
+    {
+        var list = terms
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (list.Count == 0)
+            return null;
+
+        if (list.Count == 1)
+            return list[0];
+
+        return string.Join(" OR ", list.Select(x => $"({x})"));
+    }
+
+    private static string EscapeQuoted(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal)
+             .Replace("\"", "\\\"", StringComparison.Ordinal);
 
     private static string? NormalizeKeywordExpression(string keyword)
     {

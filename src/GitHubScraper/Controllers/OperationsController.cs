@@ -46,7 +46,16 @@ public sealed class OperationsController : Controller
     public async Task<IActionResult> Create(CreateOperationViewModel vm)
     {
         if (!ModelState.IsValid)
+        {
+            var errors = ModelState
+                .Where(kvp => kvp.Value?.Errors.Count > 0)
+                .SelectMany(kvp => kvp.Value!.Errors.Select(e =>
+                    $"{kvp.Key}: {(string.IsNullOrWhiteSpace(e.ErrorMessage) ? e.Exception?.Message : e.ErrorMessage)}"))
+                .ToArray();
+
+            _logger.LogWarning("Create operation validation failed. Errors={Errors}", errors);
             return View(vm);
+        }
 
         var op = await _manager.CreateAsync(
             vm.Name,
@@ -126,6 +135,66 @@ public sealed class OperationsController : Controller
         foreach (var opId in toStart)
             await _manager.StartAsync(opId);
 
+        return RedirectToAction(nameof(Index));
+    }
+
+    // POST /operations/delete-all-keep-emails
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteAllKeepEmails()
+    {
+        var allOps = await _manager.GetAllAsync();
+        if (allOps.Count == 0)
+            return RedirectToAction(nameof(Index));
+
+        const string archiveName = "Archived Results";
+
+        // Keep a single operation to preserve FK integrity for historical results.
+        var archiveOperation = allOps
+            .FirstOrDefault(o => string.Equals(o.Name, archiveName, StringComparison.OrdinalIgnoreCase));
+
+        if (archiveOperation is null)
+        {
+            archiveOperation = await _manager.CreateAsync(
+                archiveName,
+                new List<string>(),
+                new List<string>(),
+                0,
+                null);
+
+            allOps.Add(archiveOperation);
+        }
+
+        var idsToDelete = allOps
+            .Where(o => o.Id != archiveOperation.Id)
+            .Select(o => o.Id)
+            .ToList();
+
+        if (idsToDelete.Count == 0)
+            return RedirectToAction(nameof(Index));
+
+        foreach (var opId in idsToDelete)
+            await _manager.StopAsync(opId);
+
+        await _db.DeveloperResults
+            .Where(r => idsToDelete.Contains(r.OperationId))
+            .ExecuteUpdateAsync(setters =>
+                setters.SetProperty(r => r.OperationId, archiveOperation.Id));
+
+        var operationsToDelete = await _db.Operations
+            .Where(o => idsToDelete.Contains(o.Id))
+            .ToListAsync();
+
+        _db.Operations.RemoveRange(operationsToDelete);
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    // POST /operations/add-defaults
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddDefaults()
+    {
+        await SeedData.SeedAsync(_db);
         return RedirectToAction(nameof(Index));
     }
 
