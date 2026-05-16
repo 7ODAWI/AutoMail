@@ -6,12 +6,12 @@
 
 @section styles {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.css" />
     <style>
         .badge-pending       { background: #6c757d; color: #fff; }
         .badge-inprogress    { background: #007bff; color: #fff; }
         .badge-completed     { background: #28a745; color: #fff; }
         .badge-failed        { background: #dc3545; color: #fff; }
-        .badge-partiallysent { background: #ffc107; color: #212529; }
         .badge-paused        { background: #fd7e14; color: #fff; }
         .badge-cancelled     { background: #343a40; color: #fff; }
         .badge-success-email { background: #28a745; color: #fff; }
@@ -19,8 +19,6 @@
         .stat-card .stat-value { font-size: 2rem; font-weight: 700; transition: color .3s; }
         .stat-card .stat-label { font-size: .85rem; color: #888; }
         .stat-value.bump { transform: scale(1.1); transition: transform .15s; }
-
-        .progress-lg { height: 10px; border-radius: 5px; background: #e9ecef; }
         .progress-lg .progress-bar { border-radius: 5px; transition: width .5s ease; }
 
         #page-overlay {
@@ -28,7 +26,7 @@
             position: fixed; inset: 0;
             background: rgba(0,0,0,.35);
             z-index: 9999;
-            align-items: center;
+                $('#tpl-body').summernote('code', t.body || '');
             justify-content: center;
         }
         #page-overlay.show { display: flex; }
@@ -36,12 +34,13 @@
 
         .email-table td { font-size: .9rem; }
         .body-preview { max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; padding: 12px; border-radius: 4px; background: #f8f9fa; }
-
+                var bodyHtml = $('#tpl-body').summernote('code');
+                var body = $.trim($('<div>').html(bodyHtml).text());
         /* Highlight new rows added via SignalR */
         @@keyframes row-flash { from { background: #d4edda; } to { background: transparent; } }
         tr.row-new { animation: row-flash 1.5s ease-out; }
-        tr.row-new-fail { animation: row-flash 1.5s ease-out; background: #f8d7da !important; }
-    </style>
+                    ? { id: id, name: $('#tpl-name').val().trim(), subject: subject, body: bodyHtml, weight: parseInt($('#tpl-weight').val()) || 1 }
+                    : { operationId: opId, name: $('#tpl-name').val().trim(), subject: subject, body: bodyHtml, weight: parseInt($('#tpl-weight').val()) || 1 };
 }
 
 <div id="page-overlay">
@@ -203,7 +202,7 @@
                     </div>
                     <div class="form-group">
                         <label>Body <span class="text-danger">*</span></label>
-                        <textarea id="tpl-body" class="form-control" rows="9"></textarea>
+                        <div id="tpl-body"></div>
                     </div>
                     <div class="form-row align-items-center">
                         <div class="col-auto">
@@ -272,6 +271,7 @@
 
 @section scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
     <script>
     (function ($) {
@@ -320,6 +320,18 @@
         function alertError(msg) {
             Swal.fire({ icon: 'error', title: 'Error', text: msg });
         }
+
+        $('#tpl-body').summernote({
+            height: 220,
+            placeholder: 'Design this template body...',
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'strikethrough', 'clear']],
+                ['fontname', ['fontname']], ['fontsize', ['fontsize']], ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']], ['table', ['table']],
+                ['insert', ['link', 'picture', 'hr']], ['view', ['fullscreen', 'codeview', 'undo', 'redo']]
+            ]
+        });
 
         function getToken() {
             return $('input[name="__RequestVerificationToken"]').val();
