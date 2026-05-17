@@ -15,16 +15,11 @@ public sealed class OperationsController : Controller
 {
     private readonly OperationManager _manager;
     private readonly AppDbContext _db;
-    private readonly ILogger<OperationsController> _logger;
 
-    public OperationsController(
-        OperationManager manager,
-        AppDbContext db,
-        ILogger<OperationsController> logger)
+    public OperationsController(OperationManager manager, AppDbContext db)
     {
         _manager = manager;
         _db = db;
-        _logger = logger;
     }
 
     // GET /operations
@@ -53,7 +48,6 @@ public sealed class OperationsController : Controller
                     $"{kvp.Key}: {(string.IsNullOrWhiteSpace(e.ErrorMessage) ? e.Exception?.Message : e.ErrorMessage)}"))
                 .ToArray();
 
-            _logger.LogWarning("Create operation validation failed. Errors={Errors}", errors);
             return View(vm);
         }
 
@@ -257,70 +251,6 @@ public sealed class OperationsController : Controller
         return File(ms, "text/csv", filename);
     }
 
-    // GET /operations/export-all-distinct
-    [HttpGet]
-    public async Task<IActionResult> ExportAllDistinct()
-    {
-        try
-        {
-            var ms = new MemoryStream();
-            await using (var writer = new StreamWriter(ms, leaveOpen: true))
-            await using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
-            {
-                csv.WriteHeader<GlobalCsvExportRow>();
-                await csv.NextRecordAsync();
-
-                var operationNames = await _db.Operations
-                    .AsNoTracking()
-                    .Select(o => new { o.Id, o.Name })
-                    .ToDictionaryAsync(x => x.Id, x => x.Name);
-
-                // Stream ordered results and dedupe client-side for maximum SQL-provider compatibility.
-                var seenEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var orderedRows = _db.DeveloperResults
-                    .AsNoTracking()
-                    .Where(r => !string.IsNullOrWhiteSpace(r.Email))
-                    .OrderByDescending(r => r.FoundAtUtc)
-                    .ThenByDescending(r => r.Id)
-                    .AsAsyncEnumerable();
-
-                await foreach (var r in orderedRows)
-                {
-                    if (!seenEmails.Add(r.Email))
-                        continue;
-
-                    operationNames.TryGetValue(r.OperationId, out var operationName);
-
-                    csv.WriteRecord(new GlobalCsvExportRow
-                    {
-                        OperationId      = r.OperationId,
-                        OperationName    = operationName ?? string.Empty,
-                        Username         = r.Username,
-                        Name             = r.Name ?? string.Empty,
-                        Email            = r.Email,
-                        EmailConfidence  = r.EmailConfidence ?? string.Empty,
-                        Location         = r.Location ?? string.Empty,
-                        Website          = r.Website ?? string.Empty,
-                        Followers        = r.Followers,
-                        Repos            = r.Repos,
-                        ProfileUrl       = r.ProfileUrl ?? string.Empty,
-                        FoundAtUtc       = r.FoundAtUtc.ToString("o")
-                    });
-                    await csv.NextRecordAsync();
-                }
-            }
-
-            ms.Position = 0;
-            var filename = $"emails_all_distinct_{DateTime.UtcNow:yyyyMMddHHmm}.csv";
-            return File(ms, "text/csv", filename);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to export all distinct results as CSV.");
-            return StatusCode(500, "Failed to export distinct CSV.");
-        }
-    }
-
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static OperationCardDto ToCard(ScrapingOperation o) => new()
@@ -344,23 +274,6 @@ public sealed class OperationsController : Controller
     // CSV export row type
     private sealed class CsvExportRow
     {
-        public string Username { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string EmailConfidence { get; set; } = string.Empty;
-        public string Location { get; set; } = string.Empty;
-        public string Website { get; set; } = string.Empty;
-        public int Followers { get; set; }
-        public int Repos { get; set; }
-        public string ProfileUrl { get; set; } = string.Empty;
-        public string FoundAtUtc { get; set; } = string.Empty;
-    }
-
-    // CSV export row type for all-operations deduplicated export
-    private sealed class GlobalCsvExportRow
-    {
-        public Guid OperationId { get; set; }
-        public string OperationName { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;

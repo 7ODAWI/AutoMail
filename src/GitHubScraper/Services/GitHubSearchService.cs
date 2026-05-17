@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using GitHubScraper.Models.Pipeline;
 using GitHubScraper.Models.Settings;
 using GitHubScraper.Pipeline;
-using GitHubScraper.Services.Search;
 
 namespace GitHubScraper.Services;
 
@@ -16,7 +15,6 @@ public sealed class GitHubSearchService : IGitHubSearchService
 {
     private readonly HttpClient _http;
     private readonly GitHubOptions _options;
-    private readonly IGitHubSearchQueryBuilder _queryBuilder;
     private readonly string? _pat;
     private readonly string[] _keywords;
     private readonly string[] _locations;
@@ -31,7 +29,6 @@ public sealed class GitHubSearchService : IGitHubSearchService
     public GitHubSearchService(
         IHttpClientFactory httpFactory,
         GitHubOptions options,
-        IGitHubSearchQueryBuilder queryBuilder,
         string? pat,
         string[] keywords,
         string[] locations,
@@ -42,7 +39,6 @@ public sealed class GitHubSearchService : IGitHubSearchService
     {
         _http = httpFactory.CreateClient("Web");
         _options = options;
-        _queryBuilder = queryBuilder;
         _pat = pat;
         _keywords = keywords;
         _locations = locations;
@@ -55,11 +51,9 @@ public sealed class GitHubSearchService : IGitHubSearchService
     public async IAsyncEnumerable<string> SearchUsernamesAsync(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        foreach (var builtQuery in BuildQueries())
+        foreach (var query in BuildQueries())
         {
             if (ct.IsCancellationRequested) yield break;
-
-            var query = builtQuery.Query;
 
             if (_checkpoint.IsQueryCompleted(query))
             {
@@ -82,10 +76,8 @@ public sealed class GitHubSearchService : IGitHubSearchService
                 GitHubWebSearchPayload? webResult = null;
                 try
                 {
-                    var url = _queryBuilder.BuildWebSearchUrl(_options.WebBaseUrl, query, page, "users");
+                    var url = BuildWebSearchUrl(query, page);
                     var referrer = $"{_options.WebBaseUrl.TrimEnd('/')}/search?q={Uri.EscapeDataString(query)}&type=users&p={page}";
-
-                    _logger.LogDebug("Search query AST:\n{Tree}", builtQuery.DebugTree);
 
                     using var response = await SendWithRetryAsync(url, referrer, ct);
                     webResult = await response.Content.ReadFromJsonAsync<GitHubWebSearchPayload>(cancellationToken: ct);
@@ -224,7 +216,7 @@ public sealed class GitHubSearchService : IGitHubSearchService
         throw new HttpRequestException("Exceeded retry attempts due to rate limiting.");
     }
 
-    private IEnumerable<GitHubBuiltQuery> BuildQueries()
+    private IEnumerable<string> BuildQueries()
     {
         if (_keywords.Length == 0 && _locations.Length == 0)
         {
@@ -232,100 +224,34 @@ public sealed class GitHubSearchService : IGitHubSearchService
             yield break;
         }
 
-        var keywordExpression = BuildOrExpression(
-            _keywords
-                .Select(NormalizeKeywordExpression)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x!));
+        var kws = _keywords.Length == 0 ? new[] { string.Empty } : _keywords;
+        var locs = _locations.Length == 0 ? new[] { string.Empty } : _locations;
 
-        var locationExpression = BuildOrExpression(
-            _locations
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => $"location:\"{EscapeQuoted(x.Trim())}\""));
-
-        var expression = CombineAnd(keywordExpression, locationExpression);
-
-        var qualifiers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (_minFollowers > 0)
-            qualifiers["followers"] = $">={_minFollowers}";
-
-        GitHubBuiltQuery built;
-        try
+        foreach (var keyword in kws)
+        foreach (var location in locs)
         {
-            built = _queryBuilder.Build(new GitHubQueryBuildRequest(expression, qualifiers));
+            var parts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+                parts.Add('"' + keyword + '"');
+
+            if (!string.IsNullOrWhiteSpace(location))
+                parts.Add("location:\"" + location + '"');
+
+            if (_minFollowers > 0)
+                parts.Add($"followers:>={_minFollowers}");
+
+            yield return string.Join(' ', parts);
         }
-        catch (GitHubSearchQueryException ex)
-        {
-            _logger.LogWarning(ex,
-                "Skipping malformed combined query. Expression='{Expression}'",
-                expression);
-            _stats.IncrementFailures();
-            yield break;
-        }
-
-        yield return built;
     }
 
-    private static string? CombineAnd(string? left, string? right)
+    private static string BuildSearchUrl(string query, int page) =>
+        $"/search/users?q={Uri.EscapeDataString(query)}&per_page=100&page={page}&sort=joined&order=desc";
+
+    private string BuildWebSearchUrl(string query, int page)
     {
-        if (string.IsNullOrWhiteSpace(left))
-            return right;
-        if (string.IsNullOrWhiteSpace(right))
-            return left;
-
-        return $"({left}) AND ({right})";
-    }
-
-    private static string? BuildOrExpression(IEnumerable<string> terms)
-    {
-        var list = terms
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (list.Count == 0)
-            return null;
-
-        if (list.Count == 1)
-            return list[0];
-
-        return string.Join(" OR ", list.Select(x => $"({x})"));
-    }
-
-    private static string EscapeQuoted(string value) =>
-        value.Replace("\\", "\\\\", StringComparison.Ordinal)
-             .Replace("\"", "\\\"", StringComparison.Ordinal);
-
-    private static string? NormalizeKeywordExpression(string keyword)
-    {
-        if (string.IsNullOrWhiteSpace(keyword))
-            return null;
-
-        var trimmed = keyword.Trim();
-        if (LooksAdvancedExpression(trimmed))
-            return trimmed;
-
-        // Backward-compatible behavior: plain multi-word tags remain exact phrase searches.
-        if (trimmed.Contains(' ', StringComparison.Ordinal))
-            return '"' + trimmed + '"';
-
-        return trimmed;
-    }
-
-    private static bool LooksAdvancedExpression(string value)
-    {
-        if (value.Contains('(', StringComparison.Ordinal)
-            || value.Contains(')', StringComparison.Ordinal)
-            || value.Contains('"', StringComparison.Ordinal)
-            || value.Contains(':', StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        return value.Contains(" AND ", StringComparison.OrdinalIgnoreCase)
-            || value.StartsWith("NOT ", StringComparison.OrdinalIgnoreCase)
-            || value.Contains(" OR ", StringComparison.OrdinalIgnoreCase)
-            || value.Contains(" NOT ", StringComparison.OrdinalIgnoreCase);
+        var baseUrl = _options.WebBaseUrl?.TrimEnd('/') ?? "https://github.com";
+        // use `p` for paging and request JSON
+        return $"{baseUrl}/search?q={Uri.EscapeDataString(query)}&type=users&p={page}&ref=advsearch";
     }
 }

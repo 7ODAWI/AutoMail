@@ -37,6 +37,7 @@
         @@keyframes row-flash { from { background: #d4edda; } to { background: transparent; } }
         tr.row-new { animation: row-flash 1.5s ease-out; }
     </style>
+    }
 
 <div id="page-overlay">
     <div class="spinner-border text-light spinner-border-lg" role="status">
@@ -679,7 +680,7 @@
             $('#template-modal').modal('show');
         }
 
-        window.openEditTpl = function (id) {
+        function openEditTpl(id) {
             var t = templateCache.find(function (x) { return x.id === id; });
             if (!t) return;
             $('#tpl-id').val(t.id);
@@ -689,7 +690,7 @@
             $('#tpl-weight').val(t.weight);
             $('#tpl-modal-title').text('Edit Template');
             $('#template-modal').modal('show');
-        };
+        }
 
         function saveTpl() {
             var id = parseInt($('#tpl-id').val()) || 0;
@@ -722,7 +723,7 @@
             });
         }
 
-        window.deleteTpl = function (id) {
+        function deleteTpl(id) {
             Swal.fire({
                 title: 'Delete Template?', text: 'This template will be permanently removed.',
                 icon: 'warning', showCancelButton: true,
@@ -743,7 +744,7 @@
                     }
                 });
             });
-        };
+        }
 
         $('#btn-add-template').on('click', openAddTpl);
         $('#btn-save-tpl').on('click', saveTpl);

@@ -215,7 +215,7 @@
                 </div>
                 <div class="form-group">
                     <label>Body <span class="text-danger">*</span></label>
-                    <div id="create-tpl-body"></div>
+                    <textarea id="create-tpl-body" class="form-control" rows="9"></textarea>
                 </div>
                 <div class="form-row align-items-center">
                     <div class="col-auto">
@@ -374,22 +374,6 @@
             callbacks: {
                 onChange: function () { updateStartButton(); }
             }
-        });
-
-        $('#create-tpl-body').summernote({
-            height: 220,
-            placeholder: 'Design this template body...',
-            toolbar: [
-                ['style', ['style']],
-                ['font', ['bold', 'italic', 'underline', 'strikethrough', 'clear']],
-                ['fontname', ['fontname']],
-                ['fontsize', ['fontsize']],
-                ['color', ['color']],
-                ['para', ['ul', 'ol', 'paragraph']],
-                ['table', ['table']],
-                ['insert', ['link', 'picture', 'hr']],
-                ['view', ['fullscreen', 'codeview', 'undo', 'redo']]
-            ]
         });
 
         function getBodyHtml() {
@@ -617,7 +601,7 @@
             $('#create-tpl-idx').val(idx);
             $('#create-tpl-name').val(t.name || '');
             $('#create-tpl-subject').val(t.subject);
-            $('#create-tpl-body').summernote('code', t.body || '');
+            $('#create-tpl-body').val(t.body);
             $('#create-tpl-weight').val(t.weight);
             $('#create-tpl-modal-title').text('Edit Template');
             tplModal.show();
@@ -632,7 +616,7 @@
             $('#create-tpl-idx').val('');
             $('#create-tpl-name').val('');
             $('#create-tpl-subject').val('');
-            $('#create-tpl-body').summernote('code', '');
+            $('#create-tpl-body').val('');
             $('#create-tpl-weight').val(1);
             $('#create-tpl-modal-title').text('Add Template');
             tplModal.show();
@@ -641,14 +625,13 @@
         $('#btn-save-create-tpl').on('click', function () {
             var idx = $('#create-tpl-idx').val();
             var subject = $.trim($('#create-tpl-subject').val());
-            var bodyHtml = $('#create-tpl-body').summernote('code');
-            var bodyText = $.trim($('<div>').html(bodyHtml).text());
+            var body    = $.trim($('#create-tpl-body').val());
             if (!subject) { alertError('Subject is required.'); return; }
-            if (!bodyText) { alertError('Body is required.'); return; }
+            if (!body)    { alertError('Body is required.'); return; }
             var entry = {
                 name:    $.trim($('#create-tpl-name').val()),
                 subject: subject,
-                body:    bodyHtml,
+                body:    body,
                 weight:  parseInt($('#create-tpl-weight').val()) || 1
             };
             if (idx !== '') {
