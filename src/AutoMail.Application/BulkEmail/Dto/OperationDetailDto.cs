@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using AutoMail.Project_Models;
 
 namespace AutoMail.BulkEmail.Dto
 {
@@ -19,6 +20,11 @@ namespace AutoMail.BulkEmail.Dto
         public DateTime? StartedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public string StopReason { get; set; }
+        public AiGenerationMode AiGenerationMode { get; set; }
+        public int AiVariantCount { get; set; }
+        public string AiPrompt { get; set; }
+        public string AiTone { get; set; }
+        public DateTime? AiLastGeneratedAt { get; set; }
         public List<EmailTemplateDto> Templates { get; set; } = new();
         public List<OperationEmailDto> Emails { get; set; } = new();
     }
@@ -29,7 +35,12 @@ namespace AutoMail.BulkEmail.Dto
         public string Name { get; set; }
         public string Subject { get; set; }
         public string Body { get; set; }
+        public string PreviewText { get; set; }
         public int Weight { get; set; }
+        public bool IsAiGenerated { get; set; }
+        public double? SimilarityScore { get; set; }
+        public long? AiGenerationRunId { get; set; }
+        public long? AiGeneratedVersionId { get; set; }
     }
 
     public class CreateTemplateInput
@@ -38,7 +49,12 @@ namespace AutoMail.BulkEmail.Dto
         [MaxLength(200)] public string Name { get; set; }
         [Required] public string Subject { get; set; }
         [Required] public string Body { get; set; }
+        [MaxLength(500)] public string PreviewText { get; set; }
         [Range(1, 100)] public int Weight { get; set; } = 1;
+        public bool IsAiGenerated { get; set; }
+        public double? SimilarityScore { get; set; }
+        public long? AiGenerationRunId { get; set; }
+        public long? AiGeneratedVersionId { get; set; }
     }
 
     public class UpdateTemplateInput
@@ -47,6 +63,11 @@ namespace AutoMail.BulkEmail.Dto
         [MaxLength(200)] public string Name { get; set; }
         [Required] public string Subject { get; set; }
         [Required] public string Body { get; set; }
+        [MaxLength(500)] public string PreviewText { get; set; }
         [Range(1, 100)] public int Weight { get; set; } = 1;
+        public bool IsAiGenerated { get; set; }
+        public double? SimilarityScore { get; set; }
+        public long? AiGenerationRunId { get; set; }
+        public long? AiGeneratedVersionId { get; set; }
     }
 }

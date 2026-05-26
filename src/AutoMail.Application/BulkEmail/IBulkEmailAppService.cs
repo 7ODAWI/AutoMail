@@ -31,5 +31,6 @@ namespace AutoMail.BulkEmail
         Task<EmailTemplateDto> AddTemplateAsync(CreateTemplateInput input);
         Task<EmailTemplateDto> UpdateTemplateAsync(UpdateTemplateInput input);
         Task DeleteTemplateAsync(long templateId);
+        Task<GenerateAiTemplatesResultDto> GenerateAiTemplatesAsync(GenerateAiTemplatesInput input);
     }
 }

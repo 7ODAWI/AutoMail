@@ -157,6 +157,13 @@ namespace AutoMail.Web.Controllers
             await _operationAppService.DeleteTemplateAsync(input.Id);
             return Json(new { message = "Template deleted." });
         }
+
+        [HttpPost]
+        public async Task<JsonResult> GenerateAiTemplates([FromBody] GenerateAiTemplatesInput input)
+        {
+            var result = await _operationAppService.GenerateAiTemplatesAsync(input);
+            return Json(result);
+        }
     }
 
     public class RetryOperationInput

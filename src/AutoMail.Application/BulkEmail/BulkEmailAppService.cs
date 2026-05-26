@@ -1,6 +1,8 @@
 using Abp.BackgroundJobs;
 using Abp.Domain.Repositories;
+using Abp.Timing;
 using Abp.UI;
+using AutoMail.BulkEmail.Ai;
 using AutoMail.BulkEmail.Dto;
 using AutoMail.BulkEmail.Jobs;
 using AutoMail.Project_Models;
@@ -13,6 +15,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -33,19 +36,28 @@ namespace AutoMail.BulkEmail
         private readonly IRepository<EmailSender, int> _senderRepository;
         private readonly IBackgroundJobManager _backgroundJobManager;
         private readonly IRepository<EmailTemplate, long> _templateRepository;
+        private readonly IRepository<AiGenerationRun, long> _aiGenerationRunRepository;
+        private readonly IRepository<AiGeneratedTemplateVersion, long> _aiGeneratedTemplateVersionRepository;
+        private readonly IAiTemplateGenerationService _aiTemplateGenerationService;
 
         public EmailOperationAppService(
             IRepository<EmailOperation, long> operationRepository,
             IRepository<OperationEmail, long> operationEmailRepository,
             IRepository<EmailSender, int> senderRepository,
             IBackgroundJobManager backgroundJobManager,
-            IRepository<EmailTemplate, long> templateRepository)
+            IRepository<EmailTemplate, long> templateRepository,
+            IRepository<AiGenerationRun, long> aiGenerationRunRepository,
+            IRepository<AiGeneratedTemplateVersion, long> aiGeneratedTemplateVersionRepository,
+            IAiTemplateGenerationService aiTemplateGenerationService)
         {
             _operationRepository = operationRepository;
             _operationEmailRepository = operationEmailRepository;
             _senderRepository = senderRepository;
             _backgroundJobManager = backgroundJobManager;
             _templateRepository = templateRepository;
+            _aiGenerationRunRepository = aiGenerationRunRepository;
+            _aiGeneratedTemplateVersionRepository = aiGeneratedTemplateVersionRepository;
+            _aiTemplateGenerationService = aiTemplateGenerationService;
         }
 
         // ------------------------------------------------------------------ //
@@ -89,7 +101,11 @@ namespace AutoMail.BulkEmail
                 Status = OperationStatus.Pending,
                 TotalEmails = validEmails.Count,
                 SentCount = 0,
-                FailedCount = 0
+                FailedCount = 0,
+                AiGenerationMode = input.AiGenerationMode,
+                AiPrompt = input.AiPrompt,
+                AiTone = input.AiTone,
+                AiVariantCount = input.AiVariantCount
             };
 
             operation = await _operationRepository.InsertAsync(operation);
@@ -107,6 +123,17 @@ namespace AutoMail.BulkEmail
             }
 
             await CurrentUnitOfWork.SaveChangesAsync();
+
+            if (operation.AiGenerationMode == AiGenerationMode.PreGeneratedPool && operation.AiVariantCount > 0)
+            {
+                await GenerateAiTemplatesAsync(new GenerateAiTemplatesInput
+                {
+                    OperationId = operation.Id,
+                    VariantCount = operation.AiVariantCount,
+                    Prompt = operation.AiPrompt,
+                    Tone = operation.AiTone
+                });
+            }
 
             // Enqueue background job only when starting immediately
             if (input.StartImmediately)
@@ -182,6 +209,11 @@ namespace AutoMail.BulkEmail
                 StartedAt = operation.StartedAt,
                 CompletedAt = operation.CompletedAt,
                 StopReason = operation.StopReason,
+                AiGenerationMode = operation.AiGenerationMode,
+                AiVariantCount = operation.AiVariantCount,
+                AiPrompt = operation.AiPrompt,
+                AiTone = operation.AiTone,
+                AiLastGeneratedAt = operation.AiLastGeneratedAt,
                 Templates = templates.Select(MapToTemplateDto).ToList(),
                 Emails = emails.Select(e => new OperationEmailDto
                 {
@@ -479,6 +511,10 @@ namespace AutoMail.BulkEmail
 
             operation.Subject = input.Subject?.Trim();
             operation.Body = input.Body;
+            operation.AiGenerationMode = input.AiGenerationMode;
+            operation.AiVariantCount = input.AiVariantCount;
+            operation.AiPrompt = input.AiPrompt;
+            operation.AiTone = input.AiTone;
             await _operationRepository.UpdateAsync(operation);
 
             if (input.File != null && input.File.Length > 0)
@@ -539,7 +575,11 @@ namespace AutoMail.BulkEmail
                 Status = OperationStatus.Pending,
                 TotalEmails = 0,
                 SentCount = 0,
-                FailedCount = 0
+                FailedCount = 0,
+                AiGenerationMode = original.AiGenerationMode,
+                AiVariantCount = original.AiVariantCount,
+                AiPrompt = original.AiPrompt,
+                AiTone = original.AiTone
             };
             cloned = await _operationRepository.InsertAsync(cloned);
             await CurrentUnitOfWork.SaveChangesAsync();
@@ -570,7 +610,10 @@ namespace AutoMail.BulkEmail
                     Name = t.Name,
                     Subject = t.Subject,
                     Body = t.Body,
-                    Weight = t.Weight
+                    Weight = t.Weight,
+                    PreviewText = t.PreviewText,
+                    IsAiGenerated = t.IsAiGenerated,
+                    SimilarityScore = t.SimilarityScore
                 });
 
             await CurrentUnitOfWork.SaveChangesAsync();
@@ -593,7 +636,12 @@ namespace AutoMail.BulkEmail
                 Name = input.Name?.Trim(),
                 Subject = input.Subject?.Trim(),
                 Body = input.Body,
-                Weight = input.Weight
+                Weight = input.Weight,
+                PreviewText = input.PreviewText,
+                IsAiGenerated = input.IsAiGenerated,
+                SimilarityScore = input.SimilarityScore,
+                AiGenerationRunId = input.AiGenerationRunId,
+                AiGeneratedVersionId = input.AiGeneratedVersionId
             };
 
             await _templateRepository.InsertAsync(template);
@@ -612,10 +660,121 @@ namespace AutoMail.BulkEmail
             template.Subject = input.Subject?.Trim();
             template.Body = input.Body;
             template.Weight = input.Weight;
+            template.PreviewText = input.PreviewText;
+            template.IsAiGenerated = input.IsAiGenerated;
+            template.SimilarityScore = input.SimilarityScore;
+            template.AiGenerationRunId = input.AiGenerationRunId;
+            template.AiGeneratedVersionId = input.AiGeneratedVersionId;
 
             await _templateRepository.UpdateAsync(template);
             await CurrentUnitOfWork.SaveChangesAsync();
             return MapToTemplateDto(template);
+        }
+
+        public async Task<GenerateAiTemplatesResultDto> GenerateAiTemplatesAsync(GenerateAiTemplatesInput input)
+        {
+            var operation = await _operationRepository.GetAsync(input.OperationId);
+            if (operation.Status == OperationStatus.InProgress)
+                throw new UserFriendlyException("Cannot generate AI templates for an in-progress operation.");
+
+            var historicalTemplates = await _templateRepository.GetAll()
+                .OrderByDescending(t => t.CreationTime)
+                .Take(500)
+                .ToListAsync();
+
+            var generationRun = new AiGenerationRun
+            {
+                OperationId = operation.Id,
+                Status = AiGenerationRunStatus.Running,
+                RequestedVariants = input.VariantCount,
+                StartedAt = Clock.Now,
+                CorrelationId = Guid.NewGuid().ToString("N"),
+                ModelRoute = "balanced"
+            };
+
+            generationRun = await _aiGenerationRunRepository.InsertAsync(generationRun);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            try
+            {
+                var variants = await _aiTemplateGenerationService.GenerateTemplatesAsync(operation, historicalTemplates, input);
+                var generatedTemplates = new List<EmailTemplateDto>();
+
+                foreach (var variant in variants)
+                {
+                    var version = new AiGeneratedTemplateVersion
+                    {
+                        OperationId = operation.Id,
+                        GenerationRunId = generationRun.Id,
+                        Subject = variant.Subject,
+                        PreviewText = variant.PreviewText,
+                        BodyHtml = variant.BodyHtml,
+                        OutlineJson = variant.OutlineJson,
+                        ComponentOrderJson = variant.ComponentOrderJson,
+                        ModelName = variant.ModelName,
+                        PromptVersion = variant.PromptVersion,
+                        InputTokens = variant.InputTokens,
+                        OutputTokens = variant.OutputTokens,
+                        LatencyMs = variant.LatencyMs,
+                        SimilarityScore = variant.SimilarityScore,
+                        SubjectHash = ComputeSha256(variant.Subject),
+                        BodyHash = ComputeSha256(variant.BodyHtml),
+                        StructureHash = ComputeSha256($"{variant.OutlineJson}|{variant.ComponentOrderJson}")
+                    };
+
+                    version = await _aiGeneratedTemplateVersionRepository.InsertAsync(version);
+                    await CurrentUnitOfWork.SaveChangesAsync();
+
+                    var template = new EmailTemplate
+                    {
+                        OperationId = operation.Id,
+                        Name = BuildAiTemplateName(generationRun.Id, generatedTemplates.Count + 1),
+                        Subject = variant.Subject,
+                        Body = variant.BodyHtml,
+                        PreviewText = variant.PreviewText,
+                        Weight = variant.Weight <= 0 ? 1 : variant.Weight,
+                        IsAiGenerated = true,
+                        SimilarityScore = variant.SimilarityScore,
+                        AiGenerationRunId = generationRun.Id,
+                        AiGeneratedVersionId = version.Id
+                    };
+
+                    template = await _templateRepository.InsertAsync(template);
+                    generatedTemplates.Add(MapToTemplateDto(template));
+                }
+
+                generationRun.Status = AiGenerationRunStatus.Completed;
+                generationRun.GeneratedVariants = generatedTemplates.Count;
+                generationRun.CompletedAt = Clock.Now;
+
+                operation.AiGenerationMode = AiGenerationMode.PreGeneratedPool;
+                operation.AiVariantCount = input.VariantCount;
+                operation.AiPrompt = input.Prompt;
+                operation.AiTone = input.Tone;
+                operation.AiLastGeneratedAt = Clock.Now;
+
+                await _aiGenerationRunRepository.UpdateAsync(generationRun);
+                await _operationRepository.UpdateAsync(operation);
+                await CurrentUnitOfWork.SaveChangesAsync();
+
+                return new GenerateAiTemplatesResultDto
+                {
+                    GenerationRunId = generationRun.Id,
+                    Status = generationRun.Status.ToString(),
+                    RequestedCount = input.VariantCount,
+                    GeneratedCount = generatedTemplates.Count,
+                    Templates = generatedTemplates
+                };
+            }
+            catch (Exception ex)
+            {
+                generationRun.Status = AiGenerationRunStatus.Failed;
+                generationRun.ErrorMessage = ex.Message;
+                generationRun.CompletedAt = Clock.Now;
+                await _aiGenerationRunRepository.UpdateAsync(generationRun);
+                await CurrentUnitOfWork.SaveChangesAsync();
+                throw;
+            }
         }
 
         public async Task DeleteTemplateAsync(long templateId)
@@ -658,12 +817,42 @@ namespace AutoMail.BulkEmail
                 CreationTime = op.CreationTime,
                 StartedAt = op.StartedAt,
                 CompletedAt = op.CompletedAt,
-                StopReason = op.StopReason
+                StopReason = op.StopReason,
+                AiGenerationMode = op.AiGenerationMode,
+                AiVariantCount = op.AiVariantCount,
+                AiLastGeneratedAt = op.AiLastGeneratedAt
             };
         }
 
         private static EmailTemplateDto MapToTemplateDto(EmailTemplate t) =>
-            new EmailTemplateDto { Id = t.Id, Name = t.Name, Subject = t.Subject, Body = t.Body, Weight = t.Weight };
+            new EmailTemplateDto
+            {
+                Id = t.Id,
+                Name = t.Name,
+                Subject = t.Subject,
+                Body = t.Body,
+                PreviewText = t.PreviewText,
+                Weight = t.Weight,
+                IsAiGenerated = t.IsAiGenerated,
+                SimilarityScore = t.SimilarityScore,
+                AiGenerationRunId = t.AiGenerationRunId,
+                AiGeneratedVersionId = t.AiGeneratedVersionId
+            };
+
+        private static string BuildAiTemplateName(long generationRunId, int index)
+            => $"AI Variant #{index} (Run {generationRunId})";
+
+        private static string ComputeSha256(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(value);
+            var hash = SHA256.HashData(bytes);
+            return Convert.ToHexString(hash);
+        }
 
         private static IReadOnlyList<string> ParseExcel(Stream stream, int columnIndex)
         {
