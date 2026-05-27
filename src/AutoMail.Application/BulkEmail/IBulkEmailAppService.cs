@@ -10,6 +10,9 @@ namespace AutoMail.BulkEmail
         Task<OperationListDto> CreateOperationAsync(CreateOperationInput input);
         Task<List<OperationListDto>> GetAllOperationsAsync();
         Task<OperationDetailDto> GetOperationDetailAsync(long operationId);
+        Task<OperationDetailDto> GetOperationOverviewAsync(long operationId);
+        Task<OperationPagedResultDto<EmailTemplateDto>> GetOperationTemplatesPagedAsync(long operationId, int pageNumber, int pageSize);
+        Task<OperationPagedResultDto<OperationEmailDto>> GetOperationEmailsPagedAsync(long operationId, int pageNumber, int pageSize);
         Task RetryFailedEmailsAsync(long operationId);
         Task<byte[]> ExportFailedEmailsCsvAsync(long operationId);
         Task<byte[]> ExportDistinctEmailsExcelAsync();

@@ -47,6 +47,27 @@ namespace AutoMail.Web.Controllers
             return Json(result);
         }
 
+        [HttpGet]
+        public async Task<JsonResult> DetailOverview(long id)
+        {
+            var result = await _operationAppService.GetOperationOverviewAsync(id);
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> DetailTemplates(long id, int pageNumber = 1, int pageSize = 20)
+        {
+            var result = await _operationAppService.GetOperationTemplatesPagedAsync(id, pageNumber, pageSize);
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> DetailEmails(long id, int pageNumber = 1, int pageSize = 50)
+        {
+            var result = await _operationAppService.GetOperationEmailsPagedAsync(id, pageNumber, pageSize);
+            return Json(result);
+        }
+
         public async Task<ActionResult> DetailPage(long id)
         {
             ViewBag.OperationId = id;

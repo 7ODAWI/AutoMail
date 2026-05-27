@@ -217,9 +217,10 @@ namespace AutoMail.BulkEmail.Ai
             }
 
             var prompt = BuildPrompt(request, model);
+            var diversitySeed = ComputeStableSeed(request.CorrelationId);
             var config = new GenerateContentConfig
             {
-                Temperature = _options.Temperature,
+                Temperature = ResolveRequestTemperature(_options.Temperature, diversitySeed),
                 ResponseMimeType = "application/json"
             };
 
@@ -296,19 +297,24 @@ namespace AutoMail.BulkEmail.Ai
             var tone = string.IsNullOrWhiteSpace(request.Operation.Tone)
                 ? DetectTone(request.HistoricalTemplates)
                 : request.Operation.Tone;
+            var seed = ComputeStableSeed(request.CorrelationId) + request.Operation.BatchIndex;
+            var subjectOffset = Math.Abs(seed) % 7;
+            var sectionOffset = Math.Abs(seed) % 11;
+            var ctaOffset = Math.Abs(seed) % 13;
 
             for (var index = 0; index < count * 2; index++)
             {
-                var subject = BuildSubjectVariant(request.Operation.Subject, tone, index);
-                var preview = BuildPreviewVariant(request.Operation.Body, index);
-                var sections = RotateSections(index);
-                var cta = BuildCta(index);
+                var mixedIndex = index + subjectOffset;
+                var subject = BuildSubjectVariant(request.Operation.Subject, tone, mixedIndex);
+                var preview = BuildPreviewVariant(request.Operation.Body, mixedIndex);
+                var sections = RotateSections(mixedIndex + sectionOffset);
+                var cta = BuildCta(mixedIndex + ctaOffset);
 
                 variants.Add(new EngineVariant
                 {
                     Subject = subject,
                     PreviewText = preview,
-                    BodyHtml = BuildHtml(subject, preview, cta, sections, index),
+                    BodyHtml = BuildHtml(subject, preview, cta, sections, mixedIndex),
                     Weight = 1,
                     OutlineJson = JsonSerializer.Serialize(new { sectionOrder = sections }, JsonOptions),
                     ComponentOrderJson = JsonSerializer.Serialize(sections, JsonOptions),
@@ -323,6 +329,9 @@ namespace AutoMail.BulkEmail.Ai
 
         private static string BuildPrompt(EngineGenerateRequest request, string model)
         {
+            var diversitySeed = ComputeStableSeed(request.CorrelationId);
+            var diversityProfile = BuildDiversityProfile(diversitySeed);
+
             var styleSummary = new
             {
                 tone = DetectTone(request.HistoricalTemplates),
@@ -361,15 +370,78 @@ Output JSON schema only:
 Constraints:
 - Keep business meaning and brand intent.
 - Variants must be naturally different in subject, structure, CTA wording, and section order.
+- Every variant must have a distinct subject line; do not repeat or lightly rephrase the same subject.
 - Never copy historical templates verbatim.
 - Include header, body sections, CTA button, and footer.
 - Email-safe HTML for major clients.
+- Enforce this diversity profile for this request: {diversityProfile}.
+- Use a different narrative angle than previous versions and avoid repeating the same headline pattern.
 
 Campaign context:
 {JsonSerializer.Serialize(request.Operation, JsonOptions)}
 
 Historical style summary:
-{JsonSerializer.Serialize(styleSummary, JsonOptions)}";
+{JsonSerializer.Serialize(styleSummary, JsonOptions)}
+
+Diversity seed: {diversitySeed}";
+        }
+
+        private static int ComputeStableSeed(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return global::System.Environment.TickCount;
+            }
+
+            unchecked
+            {
+                var hash = 17;
+                foreach (var ch in value)
+                {
+                    hash = (hash * 31) + ch;
+                }
+
+                return hash;
+            }
+        }
+
+        private static double ResolveRequestTemperature(double baseTemperature, int seed)
+        {
+            var jitter = ((Math.Abs(seed) % 7) - 3) * 0.05;
+            return Math.Clamp(baseTemperature + jitter, 0, 2);
+        }
+
+        private static string BuildDiversityProfile(int seed)
+        {
+            var openings = new[]
+            {
+                "short personal update",
+                "question-led opener",
+                "story first",
+                "problem-solution",
+                "benefit first"
+            };
+
+            var ctaStyles = new[]
+            {
+                "soft invitation",
+                "direct action",
+                "informational CTA",
+                "curiosity CTA",
+                "consultative CTA"
+            };
+
+            var pace = new[]
+            {
+                "compact and punchy",
+                "balanced medium length",
+                "long-form narrative"
+            };
+
+            var indexA = Math.Abs(seed) % openings.Length;
+            var indexB = Math.Abs(seed / 3) % ctaStyles.Length;
+            var indexC = Math.Abs(seed / 5) % pace.Length;
+            return $"opening={openings[indexA]}, cta={ctaStyles[indexB]}, pacing={pace[indexC]}";
         }
 
         private static EngineVariant NormalizeVariant(EngineVariant variant, string model)
@@ -397,8 +469,29 @@ Historical style summary:
             double threshold)
         {
             var accepted = new List<EngineVariant>();
+            var usedSubjectKeys = new HashSet<string>(StringComparer.Ordinal);
+
+            if (history != null)
+            {
+                foreach (var historical in history)
+                {
+                    var historicalSubjectKey = Normalize(historical.Subject);
+                    if (!string.IsNullOrWhiteSpace(historicalSubjectKey))
+                    {
+                        usedSubjectKeys.Add(historicalSubjectKey);
+                    }
+                }
+            }
+
             foreach (var candidate in variants)
             {
+                var candidateSubjectKey = Normalize(candidate.Subject);
+                if (!string.IsNullOrWhiteSpace(candidateSubjectKey) && usedSubjectKeys.Contains(candidateSubjectKey))
+                {
+                    candidate.SimilarityScore = 1;
+                    continue;
+                }
+
                 var maxScore = 0d;
 
                 foreach (var old in history)
@@ -415,6 +508,10 @@ Historical style summary:
                 if (maxScore < threshold)
                 {
                     accepted.Add(candidate);
+                    if (!string.IsNullOrWhiteSpace(candidateSubjectKey))
+                    {
+                        usedSubjectKeys.Add(candidateSubjectKey);
+                    }
                 }
             }
 
@@ -546,15 +643,39 @@ Historical style summary:
         private static string BuildSubjectVariant(string subject, string tone, int index)
         {
             var baseSubject = string.IsNullOrWhiteSpace(subject) ? "Campaign Update" : subject.Trim();
-            var prefixPool = tone switch
+            var openingPool = tone switch
             {
-                "promotional" => new[] { "Special", "Limited", "Exclusive" },
-                "announcement" => new[] { "Introducing", "New", "Latest" },
-                "warm" => new[] { "A quick note", "Thanks", "For you" },
-                _ => new[] { "Update", "Important", "This week" }
+                "promotional" => new[] { "Special", "Limited", "Exclusive", "Today only", "Weekend", "Hot pick", "Flash", "Member" },
+                "announcement" => new[] { "Introducing", "Now live", "Just launched", "Latest", "Fresh", "Heads-up", "New release", "First look" },
+                "warm" => new[] { "A quick note", "Thanks", "For you", "Friendly update", "We thought of you", "Small favor", "Good news", "From our team" },
+                _ => new[] { "Update", "Important", "This week", "New details", "Quick brief", "Top highlights", "Worth a look", "Action needed" }
             };
 
-            return $"{prefixPool[index % prefixPool.Length]}: {baseSubject}";
+            var actionPool = new[]
+            {
+                "see what's new",
+                "your next step",
+                "inside details",
+                "what changed",
+                "new approach",
+                "recommended for you",
+                "latest version",
+                "key update"
+            };
+
+            var opening = openingPool[index % openingPool.Length];
+            var action = actionPool[Math.Abs(index / 2) % actionPool.Length];
+
+            var composedSubject = (index % 5) switch
+            {
+                0 => $"{opening}: {baseSubject}",
+                1 => $"{baseSubject} | {action}",
+                2 => $"{opening} - {action}",
+                3 => $"{action}: {baseSubject}",
+                _ => $"{baseSubject} - {opening} update"
+            };
+
+            return composedSubject;
         }
 
         private static string BuildPreviewVariant(string body, int index)

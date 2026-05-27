@@ -223,6 +223,13 @@
                 </thead>
                 <tbody id="templates-tbody"></tbody>
             </table>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" id="templates-pager" style="display:none">
+                <small class="text-muted" id="templates-page-info">Page 1</small>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-templates-prev">Prev</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-templates-next">Next</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -307,6 +314,13 @@
                     <tr><td colspan="6" class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div></td></tr>
                 </tbody>
             </table>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" id="emails-pager" style="display:none">
+                <small class="text-muted" id="emails-page-info">Page 1</small>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-emails-prev">Prev</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-emails-next">Next</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -326,6 +340,13 @@
         var hubConnection = null;
         var currentStatus = '';
         var totalEmails = 0;
+        var templatePage = 1;
+        var templatePageSize = 20;
+        var templateTotalCount = 0;
+        var emailsPage = 1;
+        var emailsPageSize = 50;
+        var emailsTotalCount = 0;
+        var emailsLoaded = false;
 
         // ── Helpers ──────────────────────────────────────────────────────── //
 
@@ -521,7 +542,7 @@
                         setTimeout(onSuccess, 300);
                         return;
                     }
-                    setTimeout(loadDetail, 400);
+                    setTimeout(reloadDetailSections, 400);
                 },
                 error: function (xhr) {
                     var msg = 'An error occurred.';
@@ -531,19 +552,58 @@
             });
         }
 
-        // ── Load full detail from server ─────────────────────────────────── //
+        // ── Load detail sections from server ────────────────────────────── //
 
-        function loadDetail() {
+        function loadOverview() {
             $.ajax({
-                url: '@Url.Action("Detail", "BulkEmail")',
+                url: '@Url.Action("DetailOverview", "BulkEmail")',
                 data: { id: opId },
                 type: 'GET',
                 success: function (resp) {
                     var op = resp.result || resp;
                     applyOpData(op);
-                    renderEmailsTable(op.emails || []);
                 }
             });
+        }
+
+        function loadTemplatesPage(page) {
+            templatePage = page || 1;
+            $.ajax({
+                url: '@Url.Action("DetailTemplates", "BulkEmail")',
+                data: { id: opId, pageNumber: templatePage, pageSize: templatePageSize },
+                type: 'GET',
+                success: function (resp) {
+                    var result = resp.result || resp;
+                    templateTotalCount = result.totalCount || 0;
+                    templateCache = result.items || [];
+                    renderTemplatesTable(templateCache);
+                    renderTemplatesPager();
+                }
+            });
+        }
+
+        function loadEmailsPage(page) {
+            emailsPage = page || 1;
+            $.ajax({
+                url: '@Url.Action("DetailEmails", "BulkEmail")',
+                data: { id: opId, pageNumber: emailsPage, pageSize: emailsPageSize },
+                type: 'GET',
+                success: function (resp) {
+                    var result = resp.result || resp;
+                    emailsTotalCount = result.totalCount || 0;
+                    renderEmailsTable(result.items || []);
+                    renderEmailsPager();
+                    emailsLoaded = true;
+                }
+            });
+        }
+
+        function reloadDetailSections() {
+            loadOverview();
+            loadTemplatesPage(templatePage);
+            if (emailsLoaded) {
+                loadEmailsPage(emailsPage);
+            }
         }
 
         function applyOpData(op) {
@@ -565,8 +625,6 @@
             updateProgress(op.sentCount, op.totalEmails, op.statusText);
             renderControls(op.statusText);
             renderAiGeneration(op);
-            templateCache = op.templates || [];
-            renderTemplatesTable(templateCache);
 
             // Stop reason banner
             if (op.stopReason) {
@@ -717,7 +775,7 @@
                     stopAutoRefresh();
                     toast('info', 'Operation ' + n.status, 'Sent: ' + n.sentCount + ' | Failed: ' + n.failedCount);
                     // Reload to get final accurate data
-                    setTimeout(loadDetail, 800);
+                    setTimeout(reloadDetailSections, 800);
                 }
                 if (st === 'paused') {
                     stopAutoRefresh();
@@ -735,7 +793,7 @@
         }
 
         function startAutoRefresh() {
-            if (!refreshTimer) refreshTimer = setInterval(loadDetail, 5000);
+            if (!refreshTimer) refreshTimer = setInterval(loadOverview, 5000);
         }
 
         function stopAutoRefresh() {
@@ -762,7 +820,7 @@
                     success: function (resp) {
                         var msg = (resp.result && resp.result.message) ? resp.result.message : resp.message || 'Retry job queued.';
                         toast('success', 'Retry Queued', msg);
-                        loadDetail();
+                            reloadDetailSections();
                     },
                     error: function (xhr) {
                         var msg = 'An unexpected error occurred.';
@@ -784,16 +842,18 @@
                 $('#templates-table').hide();
                 $('#no-templates-msg').show();
                 $('#tpl-header-hint').text('');
+                $('#templates-pager').hide();
                 return;
             }
             $('#no-templates-msg').hide();
             $('#templates-table').show();
             var totalWeight = templates.reduce(function (s, t) { return s + t.weight; }, 0);
             templates.forEach(function (t, i) {
+                var rowNo = ((templatePage - 1) * templatePageSize) + i + 1;
                 var chance = totalWeight > 0 ? Math.round((t.weight / totalWeight) * 100) : 0;
                 var preview = (t.subject || '').length > 55 ? t.subject.substring(0, 52) + '...' : t.subject;
                 $tbody.append('<tr>' +
-                    '<td>' + (i + 1) + '</td>' +
+                    '<td>' + rowNo + '</td>' +
                     '<td>' + escapeHtml(t.name || '\u2014') + '</td>' +
                     '<td title="' + escapeHtml(t.subject) + '">' + escapeHtml(preview) + '</td>' +
                     '<td>' + t.weight + '</td>' +
@@ -805,6 +865,32 @@
                     '</tr>');
             });
             $('#tpl-header-hint').text('(' + templates.length + ' template' + (templates.length > 1 ? 's' : '') + ')');
+        }
+
+        function renderTemplatesPager() {
+            var totalPages = Math.max(1, Math.ceil(templateTotalCount / templatePageSize));
+            if (templateTotalCount <= templatePageSize) {
+                $('#templates-pager').hide();
+                return;
+            }
+
+            $('#templates-pager').show();
+            $('#templates-page-info').text('Page ' + templatePage + ' of ' + totalPages + ' (' + templateTotalCount + ' total)');
+            $('#btn-templates-prev').prop('disabled', templatePage <= 1);
+            $('#btn-templates-next').prop('disabled', templatePage >= totalPages);
+        }
+
+        function renderEmailsPager() {
+            var totalPages = Math.max(1, Math.ceil(emailsTotalCount / emailsPageSize));
+            if (emailsTotalCount <= emailsPageSize) {
+                $('#emails-pager').hide();
+                return;
+            }
+
+            $('#emails-pager').show();
+            $('#emails-page-info').text('Page ' + emailsPage + ' of ' + totalPages + ' (' + emailsTotalCount + ' total)');
+            $('#btn-emails-prev').prop('disabled', emailsPage <= 1);
+            $('#btn-emails-next').prop('disabled', emailsPage >= totalPages);
         }
 
         function openAddTpl() {
@@ -847,7 +933,8 @@
                 success: function () {
                     $('#template-modal').modal('hide');
                     toast('success', id > 0 ? 'Template updated' : 'Template added', '');
-                    loadDetail();
+                        loadOverview();
+                        loadTemplatesPage(1);
                 },
                 error: function (xhr) {
                     var msg = 'An error occurred.';
@@ -873,7 +960,7 @@
                     url: '@Url.Action("DeleteTemplate", "BulkEmail")', type: 'POST',
                     contentType: 'application/json', data: JSON.stringify({ id: id }),
                     headers: { 'RequestVerificationToken': getToken() },
-                    success: function () { toast('success', 'Deleted', 'Template removed.'); loadDetail(); },
+                    success: function () { toast('success', 'Deleted', 'Template removed.'); loadOverview(); loadTemplatesPage(1); },
                     error: function (xhr) {
                         var msg = 'An error occurred.';
                         try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
@@ -885,6 +972,24 @@
 
         $('#btn-add-template').on('click', openAddTpl);
         $('#btn-save-tpl').on('click', saveTpl);
+        $('#btn-templates-prev').on('click', function () { if (templatePage > 1) loadTemplatesPage(templatePage - 1); });
+        $('#btn-templates-next').on('click', function () {
+            var totalPages = Math.max(1, Math.ceil(templateTotalCount / templatePageSize));
+            if (templatePage < totalPages) loadTemplatesPage(templatePage + 1);
+        });
+        $('#btn-emails-prev').on('click', function () { if (emailsPage > 1) loadEmailsPage(emailsPage - 1); });
+        $('#btn-emails-next').on('click', function () {
+            var totalPages = Math.max(1, Math.ceil(emailsTotalCount / emailsPageSize));
+            if (emailsPage < totalPages) loadEmailsPage(emailsPage + 1);
+        });
+        $('#btn-toggle-emails').on('click', function () {
+            setTimeout(function () {
+                var isOpen = $('#btn-toggle-emails i').hasClass('fa-minus');
+                if (isOpen && !emailsLoaded) {
+                    loadEmailsPage(1);
+                }
+            }, 100);
+        });
 
         $('#btn-stop-ai-generation').on('click', function () {
             Swal.fire({
@@ -902,7 +1007,7 @@
                     headers: { 'RequestVerificationToken': getToken() },
                     success: function () {
                         toast('success', 'AI generation stopped', 'You can start sending operation now.');
-                        loadDetail();
+                        reloadDetailSections();
                     },
                     error: function (xhr) {
                         var msg = 'An unexpected error occurred.';
@@ -916,7 +1021,8 @@
         // ── Init ─────────────────────────────────────────────────────────── //
 
         initSignalR();
-        loadDetail();
+        loadOverview();
+        loadTemplatesPage(1);
 
     }(jQuery));
     </script>

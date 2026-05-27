@@ -27,241 +27,499 @@ namespace AutoMail.BulkEmail
         private const int MaxRetries = 3;
         private const int AiGenerationBatchSize = 20;
         private static readonly string[] AllowedExtensions = { ".xlsx", ".csv" };
-                private const string DefaultAiPrompt = @"You are an expert human-style email copywriter, outreach strategist, and email deliverability specialist.
+                private const string DefaultAiPrompt = @"You are an elite outreach strategist, human-style email copywriter, HTML email designer, emotional storytelling specialist, and email deliverability expert.
 
-Your task is to generate highly unique fundraising and personal outreach emails based on the story below.
+Your task is to generate highly unique outreach and campaign email templates based on the story below.
 
-The emails must feel authentic, emotionally real, naturally handwritten, and optimized to avoid spam detection systems and mass-email similarity detection.
+The emails must feel deeply human, naturally written, emotionally believable, visually authentic, and impossible to mistake for generic AI-generated fundraising spam.
 
-MAIN GOAL:
-Generate deeply varied outreach emails from three freelancers in Gaza trying to rebuild their lives, workspace, and ability to work remotely after the war.
+These emails should feel like real manually written one-to-one messages from freelancers in Gaza trying to rebuild their lives, workspace, and future after losing everything in the war.
 
-CRITICAL UNIQUENESS RULES:
+━━━━━━━━━━━━━━━━━━━━━━━
+MAIN OBJECTIVE
+━━━━━━━━━━━━━━━━━━━━━━━
 
-* Every single email MUST feel independently written.
-* Never reuse the same sentence structures, rhythm, transitions, or emotional framing.
-* Every email must have:
+Generate highly varied outreach emails requesting:
 
-  * a completely different subject line
-  * a different opening style
-  * different pacing
-  * different emotional angle
-  * different paragraph structure
-  * different CTA style
-* Avoid detectable template patterns.
-* Avoid repeating:
+* collaboration
+* visibility
+* reposts
+* media coverage
+* humanitarian amplification
+* social sharing
+* community support
+* networking
+* freelance opportunities
+* partnerships
+* online support
+* audience sharing
+* influencer cooperation
+* soft donation support naturally
 
-  * greetings
-  * sign-offs
-  * story order
-  * donation wording
-  * photo wording
-  * support requests
-* Ensure all emails are highly distinct from one another in wording and formatting.
-* Randomize:
+The emails should NOT feel like:
 
-  * punctuation style
-  * emoji placement
-  * paragraph spacing
-  * capitalization style
-  * sentence lengths
-  * storytelling perspective
-* Some emails should feel:
+* NGO newsletters
+* corporate fundraising
+* automated campaigns
+* mass marketing
+* AI-generated templates
 
-  * reflective
-  * hopeful
-  * conversational
-  * quiet and personal
-  * like casual life updates
-  * like a check-in from a friend
-  * like a late-night thought
-  * like a work-related update
-  * like a message written during a difficult day
-* Some emails should focus more on:
+━━━━━━━━━━━━━━━━━━━━━━━
+CORE HUMANIZATION RULES
+━━━━━━━━━━━━━━━━━━━━━━━
 
-  * rebuilding work
-  * family routine
-  * internet struggles
-  * electricity issues
-  * trying to freelance again
-  * small progress moments
-  * daily life
-  * resilience
-  * gratitude
-  * hope
+Every generated email MUST feel independently written.
 
-SUBJECT LINE RULES:
+NEVER repeat:
 
-* Every email MUST have a completely unique subject line.
-* Never repeat subject structure patterns.
-* Avoid spam-trigger subjects.
-* Subjects should feel natural and handwritten.
-* Vary subject styles heavily:
+* sentence structures
+* emotional flow
+* greetings
+* CTA styles
+* paragraph rhythm
+* transitions
+* sign-offs
+* storytelling order
+* subject patterns
+* punctuation style
+* emoji placement
+* formatting structure
 
-  * short subjects
-  * reflective subjects
-  * casual subjects
-  * question-based subjects
-  * update-style subjects
-  * emotional but calm subjects
-  * simple human moments
-* Some subject examples styles:
+Every email must have:
 
-  * “A small update from Gaza”
-  * “Still trying to work again 💻”
-  * “Something I wanted to share”
-  * “Tonight we finally had electricity”
-  * “Trying to rebuild step by step”
-* Do NOT reuse wording patterns repeatedly.
-* Avoid:
+* unique emotional pacing
+* unique storytelling style
+* unique formatting
+* unique subject line
+* unique CTA approach
+* unique image layout
+* unique personality tone
 
-  * excessive emojis
-  * sales language
-  * urgency language
-  * clickbait
-  * “important”
-  * “help urgently”
-  * “donate now”
-  * “final chance”
-  * “emergency”
-* Ensure subjects look like real one-to-one human emails.
+Some emails should feel:
 
-ANTI-SPAM & DELIVERABILITY RULES:
+* reflective
+* hopeful
+* exhausted but resilient
+* quiet and personal
+* casual
+* conversational
+* like a life update
+* like a message to a friend
+* like a late-night thought
+* professional but emotional
+* work-oriented
+* humanitarian but calm
+* grateful
+* determined
 
-* The emails must appear manually typed by a real person.
-* Avoid corporate, NGO, or marketing tone.
-* Avoid excessive emotional manipulation.
-* Avoid repetitive formatting across outputs.
-* Avoid spam-trigger words and patterns such as:
+━━━━━━━━━━━━━━━━━━━━━━━
+ANTI-SPAM & DELIVERABILITY RULES
+━━━━━━━━━━━━━━━━━━━━━━━
 
-  * “urgent”
-  * “act now”
-  * “donate immediately”
-  * “click here”
-  * “limited time”
-  * excessive punctuation
-  * ALL CAPS
-* Keep language calm, human, and believable.
-* Slightly vary grammar style naturally.
-* Some emails may contain small informal human imperfections.
-* Do not make all emails overly polished.
-* Keep donation mentions soft and natural.
-* Some emails should mainly ask for:
+Avoid all spam-trigger patterns.
 
-  * sharing the campaign
-  * moral support
-  * following the journey
-  * helping amplify the story
-* Vary link placement naturally:
+NEVER overuse:
 
-  * middle of email
-  * near end
-  * after signature
-  * embedded softly in a sentence
-* Do not place links identically every time.
+* “urgent”
+* “donate now”
+* “act immediately”
+* “emergency”
+* “limited time”
+* “click here”
+* “support urgently”
+* “help immediately”
 
-EMOJI RULES:
+Avoid:
 
-* Use emojis naturally and sparingly.
-* Emojis should feel human and casual.
-* Do not overload emails with emojis.
-* Vary emoji use between emails.
-* Some emails should contain no emojis at all.
+* excessive punctuation
+* ALL CAPS
+* repetitive formatting
+* repetitive emojis
+* repetitive CTA wording
+* over-polished writing
+* corporate tone
+* marketing language
+* manipulative emotional language
 
-PHOTO VARIATION RULES:
+The emails must appear manually typed by real humans.
 
-* Use different combinations of attached photos naturally across emails.
-* Never describe photos the same way repeatedly.
-* Some emails should:
+Some emails should include:
 
-  * include 1 photo
-  * include 2 photos
-  * include 3 photos
-  * include no photos
-* Some emails should mention photos casually.
-* Some emails should attach photos without mentioning them.
-* The photos must feel documentary and personal, not promotional.
-* Avoid phrases like:
+* tiny natural imperfections
+* casual wording
+* uneven paragraph sizes
+* subtle emotional pauses
 
-  * “shocking images”
-  * “exclusive photos”
-  * “look at this tragedy”
-* Rotate photo focus naturally between:
+━━━━━━━━━━━━━━━━━━━━━━━
+SUBJECT LINE ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━
 
-  * workspace
-  * temporary shelter
-  * laptop/work setup
-  * solar setup
-  * family corner
-  * rebuilding efforts
-  * daily routine
-  * nearby surroundings
-  * internet/electricity setup
+Every email MUST have a completely unique subject line.
 
-EMAIL LENGTH VARIATION:
+Subject lines should feel:
+
+* handwritten
+* natural
+* calm
+* personal
+* curiosity-driven
+* emotionally real
+* professional sometimes
+* reflective sometimes
+
+Vary subject styles:
+
+* short
+* medium
+* question-based
+* update style
+* reflective style
+* conversational style
+* work-related style
+* storytelling style
+
+Examples of STYLE ONLY:
+
+* “Trying to work again from Gaza 💻”
+* “A small update from our side”
+* “Can I share something personal?”
+* “Still rebuilding step by step”
+* “Tonight we finally had internet”
+* “From freelancers in Gaza”
+
+DO NOT repeat patterns.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+TARGET AUDIENCE ADAPTATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Before writing each email, adapt the tone and structure based on the audience type.
+
+Possible audience types:
+
+* influencers
+* journalists
+* NGOs
+* developers
+* startup founders
+* YouTubers
+* TikTok creators
+* freelancers
+* designers
+* humanitarian activists
+* bloggers
+* business owners
+* online communities
+* tech communities
+* remote work communities
+* social media pages
+* content creators
+
+Each audience should receive:
+
+* different tone
+* different CTA style
+* different professionalism level
+* different emotional focus
+
+Examples:
+
+* Journalists → storytelling & human angle
+* Developers → rebuilding workspace & remote work
+* Influencers → visibility & sharing
+* NGOs → dignity & sustainability
+* Freelancers → shared professional struggle
+* Business owners → opportunity & resilience
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VISUAL HTML EMAIL DESIGN RULES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Every generated email must include:
+
+1. Plain text version
+2. Full responsive HTML email version
+
+The HTML design must:
+
+* look modern but personal
+* feel handcrafted
+* avoid newsletter/corporate appearance
+* feel emotional and trustworthy
+* work well on mobile
+
+Use:
+
+* inline CSS
+* responsive email-safe structure
+* rounded image corners
+* soft spacing
+* soft shadows
+* clean typography
+* mobile-friendly widths
+* natural layouts
+
+The HTML must be compatible with:
+
+* Gmail
+* Outlook
+* Apple Mail
+* mobile email apps
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VISUAL LAYOUT RANDOMIZATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Every email design should have a different visual structure.
+
+Randomize:
+
+* image positions
+* spacing
+* section ordering
+* text alignment
+* layout widths
+* gallery style
+* image count
+* typography hierarchy
+* CTA button style
+* divider styles
+* background sections
+
+Possible layout styles:
+
+* minimal
+* personal letter
+* documentary style
+* storytelling layout
+* split layout
+* centered layout
+* clean portfolio style
+* modern card layout
+* soft dark mode
+* clean light mode
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMAGE INTEGRATION RULES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Images must be integrated naturally inside the HTML email.
+
+DO NOT simply place raw image URLs.
+
+Create responsive image sections using:
+
+* responsive widths
+* rounded corners
+* natural spacing
+* clean presentation
+* documentary feeling
+
+Some emails should include:
+
+* 1 image
+* 2 images
+* 3 images
+* collage layout
+* side-by-side layout
+* hero image
+* inline storytelling images
+* no images
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AVAILABLE IMAGE TYPES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Possible image categories:
+
+* workspace before war
+* office/company photos
+* laptop/work setup
+* temporary shelter
+* family corner
+* rebuilding efforts
+* daily life moments
+* internet setup
+* electricity/solar setup
+* nearby surroundings
+
+PHOTO USAGE RULES:
+
+* Images should feel authentic and documentary.
+* Never describe photos dramatically.
+* Avoid wording like:
+
+  * shocking
+  * tragic images
+  * heartbreaking proof
+  * exclusive photos
+  * disturbing scenes
+
+Some emails should mention photos casually.
+Some should attach photos without mentioning them.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CTA RANDOMIZATION RULES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT repeat CTA wording.
+
+Rotate naturally between:
+
+* asking for reposts
+* asking for visibility
+* asking for collaboration
+* asking for networking
+* asking for work opportunities
+* asking for sharing
+* asking for support
+* softly mentioning donations
+* asking for audience amplification
+* asking for social media support
+
+Some emails should:
+
+* not ask for donations at all
+* focus mainly on storytelling
+* focus on human connection
+* focus on rebuilding work
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL LENGTH RANDOMIZATION
+━━━━━━━━━━━━━━━━━━━━━━━
 
 Generate mixed lengths:
 
 * very short emails
 * medium conversational emails
-* longer storytelling emails
+* long storytelling emails
 
 Some emails should:
 
-* start immediately with a thought
 * begin with gratitude
-* begin with a normal daily moment
-* sound like a calm update
-* sound like a personal reflection
-* feel like a simple message sent late at night
+* begin with a small daily moment
+* begin professionally
+* begin emotionally
+* begin casually
+* begin like a work update
+* begin with reflection
+* begin with hope
 
-SIGNATURE VARIATION RULES:
+━━━━━━━━━━━━━━━━━━━━━━━
+SIGNATURE RANDOMIZATION
+━━━━━━━━━━━━━━━━━━━━━━━
 
-* Never use the exact same signature repeatedly.
-* Slightly vary names/sign-offs naturally.
-* Some examples styles:
+Do NOT repeat identical signatures.
 
-  * “Mahmoud”
-  * “— Mahmoud from Gaza”
-  * “Thanks for reading”
-  * “Wishing you peace”
-  * “From Gaza with hope”
-* Do not repeat these excessively.
+Vary naturally:
 
-ORIGINAL STORY CONTEXT:
+* Mahmoud
+* Kamal
+* Mohammad
+* Mahmoud from Gaza
+* Wishing you peace
+* Thank you for reading
+* From Gaza with hope
+* Grateful for your time
+* Small variations naturally
 
-“My brothers and I are freelancers from Gaza who used to work in programming and web development before the war changed our lives completely.
+━━━━━━━━━━━━━━━━━━━━━━━
+CAMPAIGN STORY CONTEXT
+━━━━━━━━━━━━━━━━━━━━━━━
 
-We lost our home, workspace, and source of income, but we are trying to rebuild with dignity and hope.
+We are Mahmoud, Mohammad, and Kamal from Gaza.
 
-Our goal is to create a small safe shelter and a solar-powered workspace so we can continue working online and supporting our family again.”
+Before the war, we worked in:
 
-PHOTO LINKS:
-https://d2g8igdw686xgo.cloudfront.net/98533411_177124836350997_r.jpg
-https://d2g8igdw686xgo.cloudfront.net/98533411_1771248496480517_r.jpg
-https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495813018_r.jpg
-https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495575832_r.jpg
-https://images.gofundme.com/0nhw1u4UFekT2EATVPKhFNDN0oI=/720x405/https://d2g8igdw686xgo.cloudfront.net/98533411_1771246676920317_r.png
+* programming
+* web development
+* freelancing
+* WordPress development
+* ASP .NET development
+* WooCommerce
+* HTML/CSS/JavaScript
 
-CAMPAIGN LINKS:
-https://www.gofundme.com/f/gaza-war-recovery-temporary-shelter-and-livelihood
+We had:
+
+* our own workspace
+* freelance clients
+* online work
+* stable income
+
+The war destroyed:
+
+* our home
+* workspace
+* equipment
+* source of income
+
+Now we are trying to rebuild:
+
+* a safe shelter for our family
+* a solar-powered workspace
+* internet access for remote work
+* the ability to work online again
+
+This campaign is not only about survival.
+
+It is about:
+
+* dignity
+* rebuilding work
+* independence
+* stability
+* rebuilding a future again
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CAMPAIGN LINKS
+━━━━━━━━━━━━━━━━━━━━━━━
+
 https://gofund.me/d016a7efa
 
-OUTPUT FORMAT:
-For every generated email include:
+https://www.gofundme.com/f/gaza-war-recovery-temporary-shelter-and-livelihood
 
-1. Unique Subject Line
-2. Email Body
-3. Suggested Photo Count
-4. Suggested Photo Type(s)
-5. Which campaign link to use
-6. Tone style used
-7. Approximate email length category
+━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━
 
-IMPORTANT:
-The emails must feel personal, calm, trustworthy, and genuinely human — never like mass marketing campaigns or AI-generated templates.
+For every generated template include:
 
-The final output should look like organically written one-to-one emails from real people trying to rebuild their lives with dignity.
+1. Audience Type
+2. Unique Subject Line
+3. Emotional Tone
+4. Plain Text Version
+5. Full Responsive HTML Email
+6. Suggested Image Usage
+7. Design Style Name
+8. CTA Style Used
+9. Email Length Type
+10. Psychological Tone Used
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT FINAL RULES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+The emails MUST:
+
+* feel emotionally real
+* feel manually written
+* feel calm and trustworthy
+* avoid looking automated
+* avoid looking AI-generated
+* avoid looking like fundraising spam
+
+Focus on:
+
+* rebuilding
+* dignity
+* professional identity
+* resilience
+* human connection
+* remote work
+* hope
+* future
+
+The final result should feel like genuine personal outreach from real freelancers trying to rebuild their lives and work after war — not like mass marketing campaigns.
 ";
 
         private static readonly Regex EmailRegex = new Regex(
@@ -395,6 +653,146 @@ The final output should look like organically written one-to-one emails from rea
         // ------------------------------------------------------------------ //
         //  Operation Detail
         // ------------------------------------------------------------------ //
+
+        public async Task<OperationDetailDto> GetOperationOverviewAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            var retryableCount = await _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId
+                            && e.Status == SendStatus.Failed
+                            && e.RetryCount < MaxRetries)
+                .CountAsync();
+
+            var aiGeneratedTemplateCount = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == operationId && t.IsAiGenerated)
+                .CountAsync();
+
+            var aiManualTemplateCount = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == operationId && !t.IsAiGenerated)
+                .CountAsync();
+
+            var aiRuns = await _aiGenerationRunRepository.GetAll()
+                .Where(r => r.OperationId == operationId)
+                .OrderByDescending(r => r.CreationTime)
+                .Take(20)
+                .ToListAsync();
+
+            var aiRunDtos = aiRuns
+                .Select(r => new AiGenerationRunDto
+                {
+                    Id = r.Id,
+                    Status = r.Status.ToString(),
+                    RequestedVariants = r.RequestedVariants,
+                    GeneratedVariants = r.GeneratedVariants,
+                    ModelRoute = r.ModelRoute,
+                    CorrelationId = r.CorrelationId,
+                    ErrorMessage = r.ErrorMessage,
+                    CreationTime = r.CreationTime,
+                    StartedAt = r.StartedAt,
+                    CompletedAt = r.CompletedAt
+                })
+                .ToList();
+
+            return new OperationDetailDto
+            {
+                Id = operation.Id,
+                Subject = operation.Subject,
+                Body = operation.Body,
+                StatusText = operation.Status.ToString(),
+                TotalEmails = operation.TotalEmails,
+                SentCount = operation.SentCount,
+                FailedCount = operation.FailedCount,
+                PendingCount = operation.TotalEmails - operation.SentCount - operation.FailedCount,
+                RetryableCount = retryableCount,
+                CreationTime = operation.CreationTime,
+                StartedAt = operation.StartedAt,
+                CompletedAt = operation.CompletedAt,
+                StopReason = operation.StopReason,
+                AiGenerationMode = operation.AiGenerationMode,
+                AiVariantCount = operation.AiVariantCount,
+                AiPrompt = operation.AiPrompt,
+                AiTone = operation.AiTone,
+                AiLastGeneratedAt = operation.AiLastGeneratedAt,
+                AiTemplatesGenerated = operation.AiTemplatesGenerated,
+                AiGeneratedTemplateCount = aiGeneratedTemplateCount,
+                AiManualTemplateCount = aiManualTemplateCount,
+                LatestAiGenerationRun = aiRunDtos.FirstOrDefault(),
+                AiGenerationRuns = aiRunDtos
+            };
+        }
+
+        public async Task<OperationPagedResultDto<EmailTemplateDto>> GetOperationTemplatesPagedAsync(long operationId, int pageNumber, int pageSize)
+        {
+            pageNumber = pageNumber <= 0 ? 1 : pageNumber;
+            pageSize = pageSize <= 0 ? 20 : Math.Min(pageSize, 200);
+
+            var query = _templateRepository.GetAll()
+                .Where(t => t.OperationId == operationId)
+                .OrderBy(t => t.Id);
+
+            var totalCount = await query.CountAsync();
+            var templates = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return new OperationPagedResultDto<EmailTemplateDto>
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                Items = templates.Select(MapToTemplateDto).ToList()
+            };
+        }
+
+        public async Task<OperationPagedResultDto<OperationEmailDto>> GetOperationEmailsPagedAsync(long operationId, int pageNumber, int pageSize)
+        {
+            pageNumber = pageNumber <= 0 ? 1 : pageNumber;
+            pageSize = pageSize <= 0 ? 50 : Math.Min(pageSize, 500);
+
+            var query = _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId)
+                .OrderByDescending(e => e.Id);
+
+            var totalCount = await query.CountAsync();
+            var emails = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var senderIds = emails
+                .Where(e => e.SenderId.HasValue)
+                .Select(e => e.SenderId.Value)
+                .Distinct()
+                .ToList();
+
+            var senders = senderIds.Any()
+                ? await _senderRepository.GetAll()
+                    .Where(s => senderIds.Contains(s.Id))
+                    .ToDictionaryAsync(s => s.Id, s => s.Email)
+                : new Dictionary<int, string>();
+
+            var items = emails.Select(e => new OperationEmailDto
+            {
+                Email = e.Email,
+                StatusText = e.Status.ToString(),
+                RetryCount = e.RetryCount,
+                ErrorMessage = e.ErrorMessage,
+                SentAt = e.SentAt,
+                SenderEmail = e.SenderId.HasValue && senders.ContainsKey(e.SenderId.Value)
+                    ? senders[e.SenderId.Value]
+                    : null
+            }).ToList();
+
+            return new OperationPagedResultDto<OperationEmailDto>
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                Items = items
+            };
+        }
 
         public async Task<OperationDetailDto> GetOperationDetailAsync(long operationId)
         {
@@ -830,41 +1228,29 @@ The final output should look like organically written one-to-one emails from rea
             if (operation.Status != OperationStatus.Pending)
                 throw new UserFriendlyException("Only pending (draft) operations can be edited.");
 
-            var aiSettingsChanged = operation.AiGenerationMode != input.AiGenerationMode
-                || operation.AiVariantCount != input.AiVariantCount
-                || !string.Equals(operation.AiPrompt ?? string.Empty, input.AiPrompt ?? string.Empty, StringComparison.Ordinal)
-                || !string.Equals(operation.AiTone ?? string.Empty, input.AiTone ?? string.Empty, StringComparison.Ordinal);
+            var normalizedExistingPrompt = ResolveAiPrompt(operation.AiPrompt);
+            var normalizedIncomingPrompt = ResolveAiPrompt(input.AiPrompt);
+            var normalizedExistingTone = (operation.AiTone ?? string.Empty).Trim();
+            var normalizedIncomingTone = (input.AiTone ?? string.Empty).Trim();
+
+            var aiSettingsChanged = operation.AiGenerationMode != input.AiGenerationMode;
+
+            if (!aiSettingsChanged && input.AiGenerationMode == AiGenerationMode.PreGeneratedPool)
+            {
+                aiSettingsChanged = operation.AiVariantCount != input.AiVariantCount
+                    || !string.Equals(normalizedExistingPrompt, normalizedIncomingPrompt, StringComparison.Ordinal)
+                    || !string.Equals(normalizedExistingTone, normalizedIncomingTone, StringComparison.OrdinalIgnoreCase);
+            }
 
             operation.Subject = input.Subject?.Trim();
             operation.Body = input.Body;
             operation.AiGenerationMode = input.AiGenerationMode;
             operation.AiVariantCount = input.AiVariantCount;
-            operation.AiPrompt = input.AiPrompt;
-            operation.AiTone = input.AiTone;
+            operation.AiPrompt = input.AiGenerationMode == AiGenerationMode.PreGeneratedPool
+                ? normalizedIncomingPrompt
+                : (input.AiPrompt ?? string.Empty).Trim();
+            operation.AiTone = normalizedIncomingTone;
 
-            if (aiSettingsChanged)
-            {
-                var existingAiTemplates = await _templateRepository.GetAll()
-                    .Where(t => t.OperationId == input.Id && t.IsAiGenerated)
-                    .ToListAsync();
-
-                foreach (var template in existingAiTemplates)
-                {
-                    var referencingEmails = await _operationEmailRepository.GetAll()
-                        .Where(e => e.TemplateId == template.Id)
-                        .ToListAsync();
-                    foreach (var email in referencingEmails)
-                    {
-                        email.TemplateId = null;
-                        await _operationEmailRepository.UpdateAsync(email);
-                    }
-
-                    await _templateRepository.DeleteAsync(template.Id);
-                }
-
-                operation.AiLastGeneratedAt = null;
-                operation.AiTemplatesGenerated = false;
-            }
 
             await _operationRepository.UpdateAsync(operation);
 
@@ -1040,9 +1426,44 @@ The final output should look like organically written one-to-one emails from rea
             }
 
             var historicalTemplates = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == operation.Id)
                 .OrderByDescending(t => t.CreationTime)
                 .Take(500)
                 .ToListAsync();
+
+            var historicalVersions = await _aiGeneratedTemplateVersionRepository.GetAll()
+                .Where(v => v.OperationId == operation.Id)
+                .OrderByDescending(v => v.CreationTime)
+                .Take(500)
+                .ToListAsync();
+
+            if (historicalVersions.Count > 0)
+            {
+                var existingFingerprints = new HashSet<string>(
+                    historicalTemplates.Select(t => ComputeSha256($"{t.Subject}|{t.Body}")),
+                    StringComparer.Ordinal);
+
+                foreach (var version in historicalVersions)
+                {
+                    var fp = ComputeSha256($"{version.Subject}|{version.BodyHtml}");
+                    if (existingFingerprints.Contains(fp))
+                    {
+                        continue;
+                    }
+
+                    historicalTemplates.Add(new EmailTemplate
+                    {
+                        OperationId = operation.Id,
+                        Subject = version.Subject,
+                        Body = version.BodyHtml,
+                        PreviewText = version.PreviewText,
+                        Weight = 1,
+                        IsAiGenerated = true
+                    });
+
+                    existingFingerprints.Add(fp);
+                }
+            }
 
             var generationRun = new AiGenerationRun
             {

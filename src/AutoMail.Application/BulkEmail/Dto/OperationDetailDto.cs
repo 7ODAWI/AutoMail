@@ -89,4 +89,12 @@ namespace AutoMail.BulkEmail.Dto
         public long? AiGenerationRunId { get; set; }
         public long? AiGeneratedVersionId { get; set; }
     }
+
+    public class OperationPagedResultDto<T>
+    {
+        public int PageNumber { get; set; }
+        public int PageSize { get; set; }
+        public int TotalCount { get; set; }
+        public List<T> Items { get; set; } = new();
+    }
 }
