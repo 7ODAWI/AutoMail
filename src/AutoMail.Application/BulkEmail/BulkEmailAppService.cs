@@ -37,6 +37,7 @@ Generate highly varied email versions from three freelancers in Gaza trying to r
 
 ANTI-SPAM & HUMANIZATION RULES:
 
+* add emjos to email to get attention from readers.
 * Every email must look naturally handwritten by a real person.
 * Avoid repetitive wording, structure, and formatting.
 * Avoid corporate or marketing tone.
