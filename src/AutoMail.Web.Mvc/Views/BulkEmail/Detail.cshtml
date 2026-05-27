@@ -375,6 +375,9 @@
             if (st === 'failed') {
                 html += '<button class="btn btn-sm btn-outline-success mr-1" id="btn-complete-send"><i class="fas fa-check-double mr-1"></i>Complete Send</button>';
             }
+            if (st !== 'inprogress') {
+                html += '<button class="btn btn-sm btn-outline-danger mr-1" id="btn-delete-op"><i class="fas fa-trash mr-1"></i>Delete</button>';
+            }
 
             $('#op-controls').html(html);
             bindControlButtons();
@@ -420,15 +423,34 @@
                     confirmButtonText: '<i class="fas fa-check-double"></i> Complete Send'
                 }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("CompleteSend", "BulkEmail")', 'Queued'); });
             });
+
+            $('#btn-delete-op').off('click').on('click', function () {
+                Swal.fire({
+                    title: 'Delete Operation?',
+                    html: 'This will permanently delete operation <strong>#' + opId + '</strong> and all related emails, templates, and AI data.',
+                    icon: 'warning', showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: '<i class="fas fa-trash"></i> Delete'
+                }).then(function (r) {
+                    if (!r.isConfirmed) return;
+                    controlOp('@Url.Action("DeleteOperation", "BulkEmail")', 'Deleted', function () {
+                        window.location.href = '@Url.Action("Index", "BulkEmail")';
+                    });
+                });
+            });
         }
 
-        function controlOp(url, label) {
+        function controlOp(url, label, onSuccess) {
             $.ajax({
                 url: url, type: 'POST', contentType: 'application/json',
                 data: JSON.stringify({ id: opId }),
                 headers: { 'RequestVerificationToken': getToken() },
                 success: function () {
                     toast('success', label, '');
+                    if (onSuccess) {
+                        setTimeout(onSuccess, 300);
+                        return;
+                    }
                     setTimeout(loadDetail, 400);
                 },
                 error: function (xhr) {

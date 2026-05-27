@@ -22,6 +22,7 @@ namespace AutoMail.BulkEmail
         Task ReactivateOperationAsync(long operationId);
         Task CompleteUnsentEmailsAsync(long operationId);
         Task StartOperationAsync(long operationId);
+        Task DeleteOperationAsync(long operationId);
 
         // Draft management
         Task UpdateOperationAsync(UpdateOperationInput input);

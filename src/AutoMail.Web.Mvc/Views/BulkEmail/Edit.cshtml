@@ -564,7 +564,7 @@
             var aiTone = $.trim($('#ai-tone').val());
             if (!subject)  { alertError('Subject is required.'); return; }
             if (!bodyText) { alertError('Body is required.'); return; }
-            if (aiMode === 1 && (aiVariantCount < 1 || aiVariantCount > 20)) {
+            if (aiMode === 1 && (aiVariantCount < 1 || aiVariantCount > 100000000)) {
                 alertError('AI Variant Count must be between 1 and 20 when AI is enabled.');
                 return;
             }

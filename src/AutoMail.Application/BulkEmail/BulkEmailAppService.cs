@@ -634,6 +634,59 @@ https://gofund.me/d016a7efa";
                 new BulkEmailJobArgs { OperationId = operationId });
         }
 
+        public async Task DeleteOperationAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            if (operation.Status == OperationStatus.InProgress)
+            {
+                operation.Status = OperationStatus.Cancelled;
+                operation.StopReason = "Force deleted by user.";
+                operation.CompletedAt = Clock.Now;
+                await _operationRepository.UpdateAsync(operation);
+                await CurrentUnitOfWork.SaveChangesAsync();
+            }
+
+            var operationEmails = await _operationEmailRepository.GetAll()
+                .Where(e => e.OperationId == operationId)
+                .ToListAsync();
+
+            foreach (var email in operationEmails)
+            {
+                await _operationEmailRepository.DeleteAsync(email.Id);
+            }
+
+            var templates = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == operationId)
+                .ToListAsync();
+
+            foreach (var template in templates)
+            {
+                await _templateRepository.DeleteAsync(template.Id);
+            }
+
+            var generatedVersions = await _aiGeneratedTemplateVersionRepository.GetAll()
+                .Where(v => v.OperationId == operationId)
+                .ToListAsync();
+
+            foreach (var version in generatedVersions)
+            {
+                await _aiGeneratedTemplateVersionRepository.DeleteAsync(version.Id);
+            }
+
+            var generationRuns = await _aiGenerationRunRepository.GetAll()
+                .Where(r => r.OperationId == operationId)
+                .ToListAsync();
+
+            foreach (var run in generationRuns)
+            {
+                await _aiGenerationRunRepository.DeleteAsync(run.Id);
+            }
+
+            await _operationRepository.DeleteAsync(operation.Id);
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+
         // ------------------------------------------------------------------ //
         //  Update (Edit) Pending Operation
         // ------------------------------------------------------------------ //

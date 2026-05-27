@@ -17,7 +17,7 @@ namespace AutoMail.BulkEmail.Dto
 
         public AiGenerationMode AiGenerationMode { get; set; } = AiGenerationMode.Disabled;
 
-        [Range(0, 20)]
+        [Range(0, 10000000)]
         public int AiVariantCount { get; set; }
 
         [MaxLength(4000)]

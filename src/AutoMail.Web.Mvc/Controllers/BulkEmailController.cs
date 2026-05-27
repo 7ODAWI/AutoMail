@@ -116,6 +116,13 @@ namespace AutoMail.Web.Controllers
             return Json(new { message = "Operation started." });
         }
 
+        [HttpPost]
+        public async Task<JsonResult> DeleteOperation([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.DeleteOperationAsync(GetRequiredOperationId(input));
+            return Json(new { message = "Operation deleted." });
+        }
+
         private static long GetRequiredOperationId(OperationControlInput input)
         {
             if (input == null || input.Id <= 0)

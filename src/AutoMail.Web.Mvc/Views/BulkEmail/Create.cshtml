@@ -713,7 +713,7 @@
             var aiTone = $.trim($('#ai-tone').val());
             if (!subject) { alertError('Please enter a subject.'); $('#email-subject').focus(); return; }
             if (!bodyText) { alertError('Please enter a body.'); $('#email-body').summernote('focus'); return; }
-            if (aiMode === 1 && (aiVariantCount < 1 || aiVariantCount > 20)) {
+            if (aiMode === 1 && (aiVariantCount < 1 || aiVariantCount > 100000000)) {
                 alertError('AI Variant Count must be between 1 and 20 when AI is enabled.');
                 return;
             }
