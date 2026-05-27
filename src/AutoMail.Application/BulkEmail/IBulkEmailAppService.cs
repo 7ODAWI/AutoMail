@@ -37,5 +37,12 @@ namespace AutoMail.BulkEmail
         Task DeleteTemplateAsync(long templateId);
         Task<GenerateAiTemplatesResultDto> GenerateAiTemplatesAsync(GenerateAiTemplatesInput input);
         Task StopAiGenerationAsync(long operationId);
+
+        // Shared global template pool (standalone AI generation, not tied to any operation)
+        Task<GenerateAiTemplatesResultDto> GenerateGlobalAiTemplatesAsync(GenerateGlobalAiTemplatesInput input);
+        Task<List<EmailTemplateDto>> GetSharedTemplatesAsync(int pageNumber = 1, int pageSize = 50);
+        Task DeleteSharedTemplateAsync(long templateId);
+        Task<List<AiGenerationRunDto>> GetGlobalGenerationRunsAsync();
+        Task StopGlobalAiGenerationAsync();
     }
 }

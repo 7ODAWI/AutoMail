@@ -154,7 +154,7 @@ Some emails should include:
 SUBJECT LINE ENGINE
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-Every email MUST have a completely unique subject line.
+Every email MUST have a completely unique subject line. and has emjos for palestine or gaza.
 
 Subject lines should feel:
 
@@ -325,6 +325,15 @@ Some emails should include:
 * hero image
 * inline storytelling images
 * no images
+imajes links:
+https://images.gofundme.com/0nhw1u4UFekT2EATVPKhFNDN0oI=/720x405/https://d2g8igdw686xgo.cloudfront.net/98533411_1771246676920317_r.png
+https://d2g8igdw686xgo.cloudfront.net/98533411_177124840791718_r.jpg
+https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495575832_r.jpg
+https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495813018_r.jpg
+https://d2g8igdw686xgo.cloudfront.net/98533411_1771248496480517_r.jpg
+https://d2g8igdw686xgo.cloudfront.net/98533411_177124836350997_r.jpg
+https://sharing.gofundme.com/c/f/gaza-war-recovery-temporary-shelter-and-livelihood/ig/s
+and you can set images from google about gaza after war.
 
 ━━━━━━━━━━━━━━━━━━━━━━━
 AVAILABLE IMAGE TYPES
@@ -625,8 +634,6 @@ The final result should feel like genuine personal outreach from real freelancer
             // Enqueue background job only when starting immediately
             if (input.StartImmediately)
             {
-                await EnsureAiTemplatesReadyBeforeSendAsync(operation);
-
                 await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                     new BulkEmailJobArgs
                     {
@@ -926,8 +933,6 @@ The final result should feel like genuine personal outreach from real freelancer
 
             await CurrentUnitOfWork.SaveChangesAsync();
 
-            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
-
             // Enqueue job
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs
@@ -1077,8 +1082,6 @@ The final result should feel like genuine personal outreach from real freelancer
             await _operationRepository.UpdateAsync(operation);
             await CurrentUnitOfWork.SaveChangesAsync();
 
-            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
-
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs { OperationId = operationId });
         }
@@ -1131,8 +1134,6 @@ The final result should feel like genuine personal outreach from real freelancer
             await _operationRepository.UpdateAsync(operation);
             await CurrentUnitOfWork.SaveChangesAsync();
 
-            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
-
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs { OperationId = operationId });
         }
@@ -1157,8 +1158,6 @@ The final result should feel like genuine personal outreach from real freelancer
                 .AnyAsync(e => e.OperationId == operationId && e.Status == SendStatus.Pending);
             if (!hasPendingEmails)
                 throw new UserFriendlyException("No pending emails found in this operation.");
-
-            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
 
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs { OperationId = operationId });
@@ -1392,9 +1391,13 @@ The final result should feel like genuine personal outreach from real freelancer
         public async Task<EmailTemplateDto> UpdateTemplateAsync(UpdateTemplateInput input)
         {
             var template = await _templateRepository.GetAsync(input.Id);
-            var operation = await _operationRepository.GetAsync(template.OperationId);
-            if (operation.Status == OperationStatus.InProgress)
-                throw new UserFriendlyException("Cannot edit templates of an in-progress operation.");
+            // For global shared templates (OperationId == null), skip operation status check
+            if (template.OperationId.HasValue)
+            {
+                var operation = await _operationRepository.GetAsync(template.OperationId.Value);
+                if (operation.Status == OperationStatus.InProgress)
+                    throw new UserFriendlyException("Cannot edit templates of an in-progress operation.");
+            }
 
             template.Name = input.Name?.Trim();
             template.Subject = input.Subject?.Trim();
@@ -1639,12 +1642,221 @@ The final result should feel like genuine personal outreach from real freelancer
             await CurrentUnitOfWork.SaveChangesAsync();
         }
 
+        // ------------------------------------------------------------------ //
+        //  Global Shared Template Pool (standalone AI generation)
+        // ------------------------------------------------------------------ //
+
+        public async Task<GenerateAiTemplatesResultDto> GenerateGlobalAiTemplatesAsync(GenerateGlobalAiTemplatesInput input)
+        {
+            var prompt = ResolveAiPrompt(input.Prompt);
+            var variantCount = input.VariantCount <= 0 ? 10 : input.VariantCount;
+
+            // Load all existing shared templates as historical context to avoid duplicates
+            var historicalTemplates = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == null && t.IsAiGenerated)
+                .OrderByDescending(t => t.CreationTime)
+                .Take(500)
+                .ToListAsync();
+
+            var generationRun = new AiGenerationRun
+            {
+                OperationId = null,   // global run — not tied to any operation
+                Status = AiGenerationRunStatus.Running,
+                RequestedVariants = variantCount,
+                StartedAt = Clock.Now,
+                CorrelationId = Guid.NewGuid().ToString("N"),
+                ModelRoute = "balanced"
+            };
+
+            generationRun = await _aiGenerationRunRepository.InsertAsync(generationRun);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            try
+            {
+                var generatedTemplates = new List<EmailTemplateDto>();
+                var remaining = variantCount;
+
+                while (remaining > 0)
+                {
+                    var batchSize = Math.Min(AiGenerationBatchSize, remaining);
+                    var batchInput = new GenerateAiTemplatesInput
+                    {
+                        OperationId = 0, // not used when operation is null
+                        VariantCount = batchSize,
+                        Prompt = prompt,
+                        Tone = input.Tone
+                    };
+
+                    // Pass null for operation — global generation with no operation context
+                    var variants = await _aiTemplateGenerationService.GenerateTemplatesAsync(null, historicalTemplates, batchInput);
+                    if (variants == null || variants.Count == 0)
+                        break;
+
+                    var batchGeneratedCount = 0;
+                    foreach (var variant in variants)
+                    {
+                        var version = new AiGeneratedTemplateVersion
+                        {
+                            OperationId = null,  // global
+                            GenerationRunId = generationRun.Id,
+                            Subject = variant.Subject,
+                            PreviewText = variant.PreviewText,
+                            BodyHtml = variant.BodyHtml,
+                            OutlineJson = variant.OutlineJson,
+                            ComponentOrderJson = variant.ComponentOrderJson,
+                            ModelName = variant.ModelName,
+                            PromptVersion = variant.PromptVersion,
+                            InputTokens = variant.InputTokens,
+                            OutputTokens = variant.OutputTokens,
+                            LatencyMs = variant.LatencyMs,
+                            SimilarityScore = variant.SimilarityScore,
+                            SubjectHash = ComputeSha256(variant.Subject),
+                            BodyHash = ComputeSha256(variant.BodyHtml),
+                            StructureHash = ComputeSha256($"{variant.OutlineJson}|{variant.ComponentOrderJson}")
+                        };
+
+                        version = await _aiGeneratedTemplateVersionRepository.InsertAsync(version);
+                        await CurrentUnitOfWork.SaveChangesAsync();
+
+                        var template = new EmailTemplate
+                        {
+                            OperationId = null,  // global shared pool
+                            Name = BuildAiTemplateName(generationRun.Id, generatedTemplates.Count + 1),
+                            Subject = variant.Subject,
+                            Body = variant.BodyHtml,
+                            PreviewText = variant.PreviewText,
+                            Weight = variant.Weight <= 0 ? 1 : variant.Weight,
+                            IsAiGenerated = true,
+                            SimilarityScore = variant.SimilarityScore,
+                            AiGenerationRunId = generationRun.Id,
+                            AiGeneratedVersionId = version.Id
+                        };
+
+                        template = await _templateRepository.InsertAsync(template);
+                        generatedTemplates.Add(MapToTemplateDto(template));
+                        historicalTemplates.Add(template);
+                        batchGeneratedCount++;
+                    }
+
+                    generationRun.GeneratedVariants = generatedTemplates.Count;
+                    await _aiGenerationRunRepository.UpdateAsync(generationRun);
+                    await CurrentUnitOfWork.SaveChangesAsync();
+
+                    if (batchGeneratedCount == 0)
+                        break;
+
+                    remaining -= batchGeneratedCount;
+                }
+
+                generationRun.Status = AiGenerationRunStatus.Completed;
+                generationRun.CompletedAt = Clock.Now;
+                await _aiGenerationRunRepository.UpdateAsync(generationRun);
+                await CurrentUnitOfWork.SaveChangesAsync();
+
+                return new GenerateAiTemplatesResultDto
+                {
+                    GenerationRunId = generationRun.Id,
+                    Status = generationRun.Status.ToString(),
+                    RequestedCount = variantCount,
+                    GeneratedCount = generatedTemplates.Count,
+                    Templates = generatedTemplates
+                };
+            }
+            catch (Exception ex)
+            {
+                generationRun.Status = AiGenerationRunStatus.Failed;
+                generationRun.ErrorMessage = ex.Message;
+                generationRun.CompletedAt = Clock.Now;
+                await _aiGenerationRunRepository.UpdateAsync(generationRun);
+                await CurrentUnitOfWork.SaveChangesAsync();
+                throw;
+            }
+        }
+
+        public async Task<List<EmailTemplateDto>> GetSharedTemplatesAsync(int pageNumber = 1, int pageSize = 50)
+        {
+            pageNumber = pageNumber <= 0 ? 1 : pageNumber;
+            pageSize = pageSize <= 0 ? 50 : Math.Min(pageSize, 500);
+
+            var templates = await _templateRepository.GetAll()
+                .Where(t => t.OperationId == null)
+                .OrderByDescending(t => t.CreationTime)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return templates.Select(MapToTemplateDto).ToList();
+        }
+
+        public async Task DeleteSharedTemplateAsync(long templateId)
+        {
+            var template = await _templateRepository.GetAsync(templateId);
+            if (template.OperationId.HasValue)
+                throw new UserFriendlyException("This template belongs to a specific operation. Use DeleteTemplateAsync instead.");
+
+            var referencingEmails = await _operationEmailRepository.GetAll()
+                .Where(e => e.TemplateId == templateId)
+                .ToListAsync();
+            foreach (var email in referencingEmails)
+            {
+                email.TemplateId = null;
+                await _operationEmailRepository.UpdateAsync(email);
+            }
+
+            await _templateRepository.DeleteAsync(templateId);
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+
+        public async Task<List<AiGenerationRunDto>> GetGlobalGenerationRunsAsync()
+        {
+            var runs = await _aiGenerationRunRepository.GetAll()
+                .Where(r => r.OperationId == null)
+                .OrderByDescending(r => r.CreationTime)
+                .Take(50)
+                .ToListAsync();
+
+            return runs.Select(r => new AiGenerationRunDto
+            {
+                Id = r.Id,
+                Status = r.Status.ToString(),
+                RequestedVariants = r.RequestedVariants,
+                GeneratedVariants = r.GeneratedVariants,
+                ModelRoute = r.ModelRoute,
+                CorrelationId = r.CorrelationId,
+                ErrorMessage = r.ErrorMessage,
+                CreationTime = r.CreationTime,
+                StartedAt = r.StartedAt,
+                CompletedAt = r.CompletedAt
+            }).ToList();
+        }
+
+        public async Task StopGlobalAiGenerationAsync()
+        {
+            var runningRuns = await _aiGenerationRunRepository.GetAll()
+                .Where(r => r.OperationId == null && r.Status == AiGenerationRunStatus.Running)
+                .ToListAsync();
+
+            foreach (var run in runningRuns)
+            {
+                run.Status = AiGenerationRunStatus.Cancelled;
+                run.ErrorMessage = "Cancelled by user.";
+                run.CompletedAt = Clock.Now;
+                await _aiGenerationRunRepository.UpdateAsync(run);
+            }
+
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+
         public async Task DeleteTemplateAsync(long templateId)
         {
             var template = await _templateRepository.GetAsync(templateId);
-            var operation = await _operationRepository.GetAsync(template.OperationId);
-            if (operation.Status == OperationStatus.InProgress)
-                throw new UserFriendlyException("Cannot delete templates from an in-progress operation.");
+            // For global shared templates (OperationId == null), skip operation status check
+            if (template.OperationId.HasValue)
+            {
+                var operation = await _operationRepository.GetAsync(template.OperationId.Value);
+                if (operation.Status == OperationStatus.InProgress)
+                    throw new UserFriendlyException("Cannot delete templates from an in-progress operation.");
+            }
 
             // Null out TemplateId on any sent emails that referenced this template
             // (FK uses NoAction to avoid SQL Server multiple-cascade-paths error)
@@ -1737,7 +1949,6 @@ The final result should feel like genuine personal outreach from real freelancer
             }
 
             await EnqueueAiGenerationIfNeededAsync(operation);
-            throw new UserFriendlyException("AI template generation is running in background. Please retry operation start after generation completes.");
         }
 
         private static EmailTemplateDto MapToTemplateDto(EmailTemplate t) =>

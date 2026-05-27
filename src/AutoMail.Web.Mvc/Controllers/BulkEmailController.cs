@@ -193,6 +193,50 @@ namespace AutoMail.Web.Controllers
             return Json(result);
         }
 
+        // ------------------------------------------------------------------ //
+        //  Shared Global Template Pool (standalone AI generation)
+        // ------------------------------------------------------------------ //
+
+        [HttpPost]
+        public async Task<JsonResult> GenerateGlobalTemplates([FromBody] GenerateGlobalAiTemplatesInput input)
+        {
+            var result = await _operationAppService.GenerateGlobalAiTemplatesAsync(input);
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetSharedTemplates(int pageNumber = 1, int pageSize = 50)
+        {
+            var templates = await _operationAppService.GetSharedTemplatesAsync(pageNumber, pageSize);
+            return Json(templates);
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> DeleteSharedTemplate([FromBody] DeleteTemplateInput input)
+        {
+            await _operationAppService.DeleteSharedTemplateAsync(input.Id);
+            return Json(new { message = "Shared template deleted." });
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetGlobalRuns()
+        {
+            var runs = await _operationAppService.GetGlobalGenerationRunsAsync();
+            return Json(runs);
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> StopGlobalGeneration()
+        {
+            await _operationAppService.StopGlobalAiGenerationAsync();
+            return Json(new { message = "Global AI generation stopped." });
+        }
+
+        public ActionResult TemplatePool()
+        {
+            return View();
+        }
+
         [HttpPost]
         public async Task<JsonResult> StopAiGeneration([FromBody] OperationControlInput input)
         {

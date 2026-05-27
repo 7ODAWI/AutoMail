@@ -8,8 +8,8 @@ namespace AutoMail.Project_Models
     [Table("AiGenerationRuns")]
     public class AiGenerationRun : CreationAuditedEntity<long>
     {
-        [Required]
-        public long OperationId { get; set; }
+        // Null = global/standalone generation run (not tied to any operation)
+        public long? OperationId { get; set; }
 
         public AiGenerationRunStatus Status { get; set; } = AiGenerationRunStatus.Pending;
 
@@ -35,8 +35,8 @@ namespace AutoMail.Project_Models
     [Table("AiGeneratedTemplateVersions")]
     public class AiGeneratedTemplateVersion : CreationAuditedEntity<long>
     {
-        [Required]
-        public long OperationId { get; set; }
+        // Null = global/standalone template version (not tied to any operation)
+        public long? OperationId { get; set; }
 
         [Required]
         public long GenerationRunId { get; set; }

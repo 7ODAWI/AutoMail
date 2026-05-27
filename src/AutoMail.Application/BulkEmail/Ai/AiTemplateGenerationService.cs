@@ -38,16 +38,11 @@ namespace AutoMail.BulkEmail.Ai
         }
 
         public async Task<List<AiTemplateVariantDto>> GenerateTemplatesAsync(
-            EmailOperation operation,
+            EmailOperation? operation,
             List<EmailTemplate> historicalTemplates,
             GenerateAiTemplatesInput input,
             CancellationToken cancellationToken = default)
         {
-            if (operation == null)
-            {
-                throw new ArgumentNullException(nameof(operation));
-            }
-
             if (input == null)
             {
                 throw new ArgumentNullException(nameof(input));
@@ -58,11 +53,11 @@ namespace AutoMail.BulkEmail.Ai
                 CorrelationId = Guid.NewGuid().ToString("N"),
                 Operation = new EngineOperationContext
                 {
-                    OperationId = operation.Id,
-                    Subject = operation.Subject,
-                    Body = operation.Body,
-                    Prompt = string.IsNullOrWhiteSpace(input.Prompt) ? operation.AiPrompt : input.Prompt,
-                    Tone = string.IsNullOrWhiteSpace(input.Tone) ? operation.AiTone : input.Tone,
+                    OperationId = operation?.Id ?? 0,
+                    Subject = operation?.Subject,
+                    Body = operation?.Body,
+                    Prompt = string.IsNullOrWhiteSpace(input.Prompt) ? (operation?.AiPrompt ?? string.Empty) : input.Prompt,
+                    Tone = string.IsNullOrWhiteSpace(input.Tone) ? (operation?.AiTone ?? string.Empty) : input.Tone,
                     VariantCount = input.VariantCount,
                     BatchIndex = 1,
                     TotalRequestedVariants = input.VariantCount
@@ -756,7 +751,7 @@ Diversity seed: {diversitySeed}";
         }
 
         private static List<EngineTemplateContext> BuildTemplateContexts(
-            EmailOperation operation,
+            EmailOperation? operation,
             List<EmailTemplate> historicalTemplates)
         {
             var contexts = new List<EngineTemplateContext>();
@@ -772,7 +767,8 @@ Diversity seed: {diversitySeed}";
                 }));
             }
 
-            if (!contexts.Any(c => string.Equals(c.Subject, operation.Subject, StringComparison.OrdinalIgnoreCase)))
+            if (operation != null &&
+                !contexts.Any(c => string.Equals(c.Subject, operation.Subject, StringComparison.OrdinalIgnoreCase)))
             {
                 contexts.Add(new EngineTemplateContext
                 {

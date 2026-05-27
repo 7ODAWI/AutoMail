@@ -157,9 +157,19 @@ namespace AutoMail.BulkEmail.Jobs
 
             Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId}: {activeSenders.Count} sender(s) ready. Subject: '{operation.Subject}'");
 
+            // Load templates from the shared global pool (OperationId == null).
+            // These are the AI-generated templates produced by the standalone template generator.
             var templates = await _templateRepository.GetAll()
-                .Where(t => t.OperationId == args.OperationId)
+                .Where(t => t.OperationId == null)
                 .ToListAsync();
+
+            // Fallback: if no shared templates exist yet, try operation-specific ones
+            if (templates.Count == 0)
+            {
+                templates = await _templateRepository.GetAll()
+                    .Where(t => t.OperationId == args.OperationId)
+                    .ToListAsync();
+            }
 
             var rng = new Random();
             var roundRobinIndex = 0;

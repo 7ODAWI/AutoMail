@@ -8,4 +8,5 @@ public class PageNames
     public const string Users = "Users";
     public const string Roles = "Roles";
     public const string EmailOperations = "EmailOperations";
+    public const string TemplatePool = "TemplatePool";
 }

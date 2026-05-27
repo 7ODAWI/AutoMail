@@ -57,7 +57,8 @@ namespace AutoMail.Project_Models
         [MaxLength(200)]
         public string Name { get; set; }
 
-        public long OperationId { get; set; }
+        // Null = shared global template pool (not tied to any operation)
+        public long? OperationId { get; set; }
 
         [Required]
         [MaxLength(500)]

@@ -9,7 +9,7 @@ namespace AutoMail.BulkEmail.Ai
     public interface IAiTemplateGenerationService
     {
         Task<List<AiTemplateVariantDto>> GenerateTemplatesAsync(
-            EmailOperation operation,
+            EmailOperation? operation,
             List<EmailTemplate> historicalTemplates,
             GenerateAiTemplatesInput input,
             CancellationToken cancellationToken = default);

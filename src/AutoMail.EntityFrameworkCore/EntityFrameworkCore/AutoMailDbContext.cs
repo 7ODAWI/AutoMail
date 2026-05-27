@@ -69,7 +69,8 @@ public class AutoMailDbContext : AbpZeroDbContext<Tenant, Role, User, AutoMailDb
             b.HasOne<EmailOperation>()
              .WithMany()
              .HasForeignKey(e => e.OperationId)
-             .OnDelete(DeleteBehavior.Cascade);
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.SetNull);  // null = shared global template
 
             b.HasOne<AiGenerationRun>()
              .WithMany()
@@ -93,7 +94,8 @@ public class AutoMailDbContext : AbpZeroDbContext<Tenant, Role, User, AutoMailDb
             b.HasOne<EmailOperation>()
              .WithMany()
              .HasForeignKey(e => e.OperationId)
-             .OnDelete(DeleteBehavior.Cascade);
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AiGeneratedTemplateVersion>(b =>
@@ -107,7 +109,8 @@ public class AutoMailDbContext : AbpZeroDbContext<Tenant, Role, User, AutoMailDb
             b.HasOne<EmailOperation>()
              .WithMany()
              .HasForeignKey(e => e.OperationId)
-             .OnDelete(DeleteBehavior.Cascade);
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.SetNull);
 
             b.HasOne<AiGenerationRun>()
              .WithMany()

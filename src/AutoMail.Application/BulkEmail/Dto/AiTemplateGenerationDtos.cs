@@ -18,6 +18,22 @@ namespace AutoMail.BulkEmail.Dto
         public string Tone { get; set; }
     }
 
+    /// <summary>
+    /// Input for standalone global AI template generation — not tied to any operation.
+    /// Generated templates go into the shared pool used by all send operations.
+    /// </summary>
+    public class GenerateGlobalAiTemplatesInput
+    {
+        [Range(1, 10000000)]
+        public int VariantCount { get; set; } = 10;
+
+        [MaxLength(20000)]
+        public string Prompt { get; set; }
+
+        [MaxLength(128)]
+        public string Tone { get; set; }
+    }
+
     public class AiTemplateVariantDto
     {
         public string Subject { get; set; }
