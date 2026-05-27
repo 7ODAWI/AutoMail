@@ -1,5 +1,6 @@
 ﻿using Abp.BackgroundJobs;
 using Abp.Domain.Repositories;
+using Abp.Domain.Uow;
 using Abp.Timing;
 using Abp.UI;
 using AutoMail.BulkEmail.Ai;
@@ -1414,6 +1415,7 @@ The final result should feel like genuine personal outreach from real freelancer
             return MapToTemplateDto(template);
         }
 
+        [UnitOfWork(isTransactional: false)]
         public async Task<GenerateAiTemplatesResultDto> GenerateAiTemplatesAsync(GenerateAiTemplatesInput input)
         {
             var operation = await _operationRepository.GetAsync(input.OperationId);
@@ -1646,6 +1648,7 @@ The final result should feel like genuine personal outreach from real freelancer
         //  Global Shared Template Pool (standalone AI generation)
         // ------------------------------------------------------------------ //
 
+        [UnitOfWork(isTransactional: false)]
         public async Task<GenerateAiTemplatesResultDto> GenerateGlobalAiTemplatesAsync(GenerateGlobalAiTemplatesInput input)
         {
             var prompt = ResolveAiPrompt(input.Prompt);

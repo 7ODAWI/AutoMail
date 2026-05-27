@@ -17,10 +17,23 @@ namespace AutoMail.BulkEmail.Ai
 {
     public class AiTemplateGenerationService : IAiTemplateGenerationService, ITransientDependency
     {
-        private const int MaxVariantsPerRequest = 50;
-        private const int MaxVariantsPerBatch   = 20;   // keep each Gemini call small → fast response
+        private const int MaxVariantsPerBatch   = 3;    // keep each Gemini call small → fast + reliable
         private const int MaxParallelBatches    = 5;   // max concurrent Gemini calls (one per key)
         private const int BatchStaggerMs        = 200; // ms between starting each parallel batch
+
+        // Shared across all instances (transient) — tracks which key indices are rate-limited
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, DateTime> _rateLimitedUntil
+            = new System.Collections.Concurrent.ConcurrentDictionary<int, DateTime>();
+        private static readonly TimeSpan RateLimitWindow = TimeSpan.FromSeconds(60);
+
+        private static bool IsClientRateLimited(int index)
+            => _rateLimitedUntil.TryGetValue(index, out var until) && DateTime.UtcNow < until;
+
+        private static void MarkClientFailed(int index)
+            => _rateLimitedUntil[index] = DateTime.UtcNow.Add(RateLimitWindow);
+
+        private static void ClearClientFailed(int index)
+            => _rateLimitedUntil.TryRemove(index, out _);
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -137,16 +150,33 @@ namespace AutoMail.BulkEmail.Ai
                 try
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var client = GetClientForBatch(idx);
                     var batchRequest = CreateBatchRequest(request, new List<EngineVariant>(), batchSize, idx + 1);
 
-                    // Try once; retry with next key on null/empty
-                    var result = await TryGenerateWithGeminiAsync(batchRequest, model, client, cancellationToken);
-                    if (result == null || result.Variants?.Count == 0)
+                    // Cycle through ALL keys starting from the assigned one.
+                    // Keys that are known to be rate-limited (shared across all parallel batches)
+                    // are skipped automatically so we don't waste time on them.
+                    EngineGenerateResponse result = null;
+                    var keyCount = _genAiClients.Count == 0 ? 1 : _genAiClients.Count;
+                    for (var attempt = 0; attempt < keyCount; attempt++)
                     {
-                        await Task.Delay(1500, cancellationToken);
-                        var retryClient = GetClientForBatch(idx + 1); // use the next key for retry
-                        result = await TryGenerateWithGeminiAsync(batchRequest, model, retryClient, cancellationToken);
+                        var clientIdx = (idx + attempt) % _genAiClients.Count;
+
+                        // Skip rate-limited keys unless this is the last option
+                        if (IsClientRateLimited(clientIdx) && attempt < keyCount - 1)
+                            continue;
+
+                        var client = _genAiClients[clientIdx];
+                        result = await TryGenerateWithGeminiAsync(batchRequest, model, client, cancellationToken);
+                        if (result?.Variants?.Count > 0)
+                        {
+                            ClearClientFailed(clientIdx); // working again — clear its flag
+                            break;
+                        }
+
+                        MarkClientFailed(clientIdx); // mark so other batches skip it
+
+                        if (attempt < keyCount - 1)
+                            await Task.Delay(100, cancellationToken);
                     }
 
                     return result;
@@ -230,7 +260,8 @@ namespace AutoMail.BulkEmail.Ai
             var config = new GenerateContentConfig
             {
                 Temperature = ResolveRequestTemperature(_options.Temperature, diversitySeed),
-                ResponseMimeType = "application/json"
+                ResponseMimeType = "application/json",
+                MaxOutputTokens = 8192
             };
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -291,7 +322,21 @@ namespace AutoMail.BulkEmail.Ai
                     return null;
                 }
 
-                return candidate.Content.Parts[0].Text;
+                var text = candidate.Content.Parts[0].Text;
+                if (string.IsNullOrWhiteSpace(text)) return null;
+
+                // Strip markdown code fences (```json ... ```) that Gemini sometimes adds
+                text = text.Trim();
+                if (text.StartsWith("```"))
+                {
+                    var firstNewline = text.IndexOf('\n');
+                    if (firstNewline >= 0)
+                        text = text.Substring(firstNewline + 1);
+                    if (text.EndsWith("```"))
+                        text = text.Substring(0, text.LastIndexOf("```")).TrimEnd();
+                }
+
+                return text;
             }
             catch
             {
