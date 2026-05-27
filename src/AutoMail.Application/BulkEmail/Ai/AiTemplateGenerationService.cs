@@ -18,6 +18,9 @@ namespace AutoMail.BulkEmail.Ai
     public class AiTemplateGenerationService : IAiTemplateGenerationService, ITransientDependency
     {
         private const int MaxVariantsPerRequest = 50;
+        private const int MaxVariantsPerBatch   = 20;   // keep each Gemini call small → fast response
+        private const int MaxParallelBatches    = 5;   // max concurrent Gemini calls (one per key)
+        private const int BatchStaggerMs        = 200; // ms between starting each parallel batch
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -26,15 +29,26 @@ namespace AutoMail.BulkEmail.Ai
         };
 
         private readonly GeminiAiOptions _options;
-        private readonly Client _genAiClient;
+        private readonly IReadOnlyList<Client> _genAiClients;
 
         public AiTemplateGenerationService(IConfiguration configuration)
         {
             _options = GeminiAiOptions.FromConfiguration(configuration);
-            if (_options.Enabled && !string.IsNullOrWhiteSpace(_options.ApiKey))
+
+            var clients = new List<Client>();
+            if (_options.Enabled)
             {
-                _genAiClient = new Client(apiKey: _options.ApiKey);
+                foreach (var key in _options.GetAllKeys())
+                    clients.Add(new Client(apiKey: key));
             }
+            _genAiClients = clients;
+        }
+
+        // Returns the client to use for a given batch index (round-robin across all keys)
+        private Client GetClientForBatch(int batchIndex)
+        {
+            if (_genAiClients.Count == 0) return null;
+            return _genAiClients[batchIndex % _genAiClients.Count];
         }
 
         public async Task<List<AiTemplateVariantDto>> GenerateTemplatesAsync(
@@ -104,58 +118,57 @@ namespace AutoMail.BulkEmail.Ai
             CancellationToken cancellationToken)
         {
             var model = ResolveModel(request.Operation.VariantCount);
-            var aggregated = new List<EngineVariant>();
-            var remaining = Math.Max(1, request.Operation.VariantCount);
-            var batchIndex = 0;
+            var totalNeeded = Math.Max(1, request.Operation.VariantCount);
 
-            while (remaining > 0)
+            // Split the total into small batches (MaxVariantsPerBatch each)
+            var batchSizes = new List<int>();
+            for (var left = totalNeeded; left > 0; left -= MaxVariantsPerBatch)
+                batchSizes.Add(Math.Min(MaxVariantsPerBatch, left));
+
+            // Fire batches in parallel — each batch gets its own API key (round-robin)
+            var semaphore = new System.Threading.SemaphoreSlim(MaxParallelBatches);
+            var tasks = batchSizes.Select(async (batchSize, idx) =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                // Small stagger to avoid instantaneous burst
+                if (idx > 0)
+                    await Task.Delay(idx * BatchStaggerMs, cancellationToken);
 
-                var batchSize = Math.Min(MaxVariantsPerRequest, remaining);
-                var batchRequest = CreateBatchRequest(request, aggregated, batchSize, batchIndex + 1);
-                var generated = await TryGenerateWithGeminiAsync(batchRequest, model, cancellationToken);
-
-                if (generated != null && generated.Variants?.Count > 0)
+                await semaphore.WaitAsync(cancellationToken);
+                try
                 {
-                    aggregated.AddRange(generated.Variants.Take(batchSize));
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var client = GetClientForBatch(idx);
+                    var batchRequest = CreateBatchRequest(request, new List<EngineVariant>(), batchSize, idx + 1);
+
+                    // Try once; retry with next key on null/empty
+                    var result = await TryGenerateWithGeminiAsync(batchRequest, model, client, cancellationToken);
+                    if (result == null || result.Variants?.Count == 0)
+                    {
+                        await Task.Delay(1500, cancellationToken);
+                        var retryClient = GetClientForBatch(idx + 1); // use the next key for retry
+                        result = await TryGenerateWithGeminiAsync(batchRequest, model, retryClient, cancellationToken);
+                    }
+
+                    return result;
                 }
-                //else
-                //{
-                //    if (!_options.AllowFallback)
-                //    {
-                //        throw new UserFriendlyException("Gemini generation failed for this batch. No fallback template was created. Please verify API key/quota/model and retry.");
-                //    }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToList();
 
-                //    var fallbackVariants = BuildFallbackVariants(batchRequest, model);
-                //    var uniqueFallback = KeepUniqueVariants(
-                //            fallbackVariants,
-                //            batchRequest.HistoricalTemplates,
-                //            _options.SimilarityThreshold)
-                //        .Take(batchSize)
-                //        .ToList();
+            var results = await Task.WhenAll(tasks);
 
-                //    if (uniqueFallback.Count == 0)
-                //    {
-                //        uniqueFallback = fallbackVariants
-                //            .Select(v => NormalizeVariant(v, model))
-                //            .Take(batchSize)
-                //            .ToList();
-                //    }
-
-                //    aggregated.AddRange(uniqueFallback);
-                //}
-
-                remaining = request.Operation.VariantCount - aggregated.Count;
-                batchIndex++;
-            }
+            var aggregated = results
+                .Where(r => r?.Variants != null && r.Variants.Count > 0)
+                .SelectMany(r => r.Variants)
+                .Take(totalNeeded)
+                .ToList();
 
             return new EngineGenerateResponse
             {
                 Success = true,
                 Variants = aggregated
-                    .Take(request.Operation.VariantCount)
-                    .ToList()
             };
         }
 
@@ -204,14 +217,10 @@ namespace AutoMail.BulkEmail.Ai
         private async Task<EngineGenerateResponse> TryGenerateWithGeminiAsync(
             EngineGenerateRequest request,
             string model,
+            Client client,
             CancellationToken cancellationToken)
         {
-            if (!_options.Enabled || string.IsNullOrWhiteSpace(_options.ApiKey))
-            {
-                return null;
-            }
-
-            if (_genAiClient == null)
+            if (!_options.Enabled || _genAiClients.Count == 0 || client == null)
             {
                 return null;
             }
@@ -229,7 +238,7 @@ namespace AutoMail.BulkEmail.Ai
 
             try
             {
-                var sdkResponseTask = _genAiClient.Models.GenerateContentAsync(
+                var sdkResponseTask = client.Models.GenerateContentAsync(
                     model: model,
                     contents: prompt,
                     config: config);
@@ -757,10 +766,11 @@ Diversity seed: {diversitySeed}";
             var contexts = new List<EngineTemplateContext>();
             if (historicalTemplates != null && historicalTemplates.Count > 0)
             {
-                contexts.AddRange(historicalTemplates.Select(t => new EngineTemplateContext
+                // Limit to 5 most recent and truncate HTML bodies to keep prompt small
+                contexts.AddRange(historicalTemplates.Take(5).Select(t => new EngineTemplateContext
                 {
                     Subject = t.Subject,
-                    Body = t.Body,
+                    Body = t.Body?.Length > 500 ? t.Body.Substring(0, 500) + "…" : t.Body,
                     Weight = t.Weight,
                     PreviewText = t.PreviewText,
                     IsAiGenerated = t.IsAiGenerated
