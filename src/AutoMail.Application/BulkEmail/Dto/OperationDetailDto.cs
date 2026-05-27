@@ -26,8 +26,26 @@ namespace AutoMail.BulkEmail.Dto
         public string AiTone { get; set; }
         public DateTime? AiLastGeneratedAt { get; set; }
         public bool AiTemplatesGenerated { get; set; }
+        public int AiGeneratedTemplateCount { get; set; }
+        public int AiManualTemplateCount { get; set; }
+        public AiGenerationRunDto LatestAiGenerationRun { get; set; }
+        public List<AiGenerationRunDto> AiGenerationRuns { get; set; } = new();
         public List<EmailTemplateDto> Templates { get; set; } = new();
         public List<OperationEmailDto> Emails { get; set; } = new();
+    }
+
+    public class AiGenerationRunDto
+    {
+        public long Id { get; set; }
+        public string Status { get; set; }
+        public int RequestedVariants { get; set; }
+        public int GeneratedVariants { get; set; }
+        public string ModelRoute { get; set; }
+        public string CorrelationId { get; set; }
+        public string ErrorMessage { get; set; }
+        public DateTime CreationTime { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
     }
 
     public class EmailTemplateDto

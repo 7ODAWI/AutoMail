@@ -171,6 +171,13 @@ namespace AutoMail.Web.Controllers
             var result = await _operationAppService.GenerateAiTemplatesAsync(input);
             return Json(result);
         }
+
+        [HttpPost]
+        public async Task<JsonResult> StopAiGeneration([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.StopAiGenerationAsync(GetRequiredOperationId(input));
+            return Json(new { message = "AI generation stopped. You can start sending now." });
+        }
     }
 
     public class RetryOperationInput

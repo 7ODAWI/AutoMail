@@ -1,4 +1,4 @@
-using Abp.BackgroundJobs;
+﻿using Abp.BackgroundJobs;
 using Abp.Domain.Repositories;
 using Abp.Timing;
 using Abp.UI;
@@ -25,141 +25,244 @@ namespace AutoMail.BulkEmail
     public class EmailOperationAppService : AutoMailAppServiceBase, IEmailOperationAppService
     {
         private const int MaxRetries = 3;
+        private const int AiGenerationBatchSize = 20;
         private static readonly string[] AllowedExtensions = { ".xlsx", ".csv" };
-                private const string DefaultAiPrompt = @"You are an expert human-style email copywriter and email deliverability specialist.
+                private const string DefaultAiPrompt = @"You are an expert human-style email copywriter, outreach strategist, and email deliverability specialist.
 
-Your task is to generate multiple unique fundraising and personal outreach emails based on the story below.
+Your task is to generate highly unique fundraising and personal outreach emails based on the story below.
 
-The emails must feel authentic, manually written, emotionally real, and optimized to reduce spam detection.
+The emails must feel authentic, emotionally real, naturally handwritten, and optimized to avoid spam detection systems and mass-email similarity detection.
 
 MAIN GOAL:
-Generate highly varied email versions from three freelancers in Gaza trying to rebuild their lives and workspace after the war.
+Generate deeply varied outreach emails from three freelancers in Gaza trying to rebuild their lives, workspace, and ability to work remotely after the war.
 
-ANTI-SPAM & HUMANIZATION RULES:
+CRITICAL UNIQUENESS RULES:
 
-* add emjos to email to get attention from readers.
-* Every email must look naturally handwritten by a real person.
-* Avoid repetitive wording, structure, and formatting.
-* Avoid corporate or marketing tone.
-* Avoid excessive emotional exaggeration.
-* Avoid spam-trigger phrases such as:
+* Every single email MUST feel independently written.
+* Never reuse the same sentence structures, rhythm, transitions, or emotional framing.
+* Every email must have:
 
-    * ""urgent""
-    * ""act now""
-    * ""donate immediately""
-    * ""click here""
-    * ""limited time""
-    * excessive punctuation
-    * ALL CAPS
-* Use clean, natural formatting.
-* Keep emails conversational and believable.
-* Vary sentence lengths and openings.
-* Some emails should feel casual and soft.
-* Some should feel more personal and reflective.
-* Some should sound like life updates rather than fundraising.
+  * a completely different subject line
+  * a different opening style
+  * different pacing
+  * different emotional angle
+  * different paragraph structure
+  * different CTA style
+* Avoid detectable template patterns.
+* Avoid repeating:
+
+  * greetings
+  * sign-offs
+  * story order
+  * donation wording
+  * photo wording
+  * support requests
+* Ensure all emails are highly distinct from one another in wording and formatting.
+* Randomize:
+
+  * punctuation style
+  * emoji placement
+  * paragraph spacing
+  * capitalization style
+  * sentence lengths
+  * storytelling perspective
+* Some emails should feel:
+
+  * reflective
+  * hopeful
+  * conversational
+  * quiet and personal
+  * like casual life updates
+  * like a check-in from a friend
+  * like a late-night thought
+  * like a work-related update
+  * like a message written during a difficult day
+* Some emails should focus more on:
+
+  * rebuilding work
+  * family routine
+  * internet struggles
+  * electricity issues
+  * trying to freelance again
+  * small progress moments
+  * daily life
+  * resilience
+  * gratitude
+  * hope
+
+SUBJECT LINE RULES:
+
+* Every email MUST have a completely unique subject line.
+* Never repeat subject structure patterns.
+* Avoid spam-trigger subjects.
+* Subjects should feel natural and handwritten.
+* Vary subject styles heavily:
+
+  * short subjects
+  * reflective subjects
+  * casual subjects
+  * question-based subjects
+  * update-style subjects
+  * emotional but calm subjects
+  * simple human moments
+* Some subject examples styles:
+
+  * “A small update from Gaza”
+  * “Still trying to work again 💻”
+  * “Something I wanted to share”
+  * “Tonight we finally had electricity”
+  * “Trying to rebuild step by step”
+* Do NOT reuse wording patterns repeatedly.
+* Avoid:
+
+  * excessive emojis
+  * sales language
+  * urgency language
+  * clickbait
+  * “important”
+  * “help urgently”
+  * “donate now”
+  * “final chance”
+  * “emergency”
+* Ensure subjects look like real one-to-one human emails.
+
+ANTI-SPAM & DELIVERABILITY RULES:
+
+* The emails must appear manually typed by a real person.
+* Avoid corporate, NGO, or marketing tone.
+* Avoid excessive emotional manipulation.
+* Avoid repetitive formatting across outputs.
+* Avoid spam-trigger words and patterns such as:
+
+  * “urgent”
+  * “act now”
+  * “donate immediately”
+  * “click here”
+  * “limited time”
+  * excessive punctuation
+  * ALL CAPS
+* Keep language calm, human, and believable.
+* Slightly vary grammar style naturally.
+* Some emails may contain small informal human imperfections.
+* Do not make all emails overly polished.
+* Keep donation mentions soft and natural.
+* Some emails should mainly ask for:
+
+  * sharing the campaign
+  * moral support
+  * following the journey
+  * helping amplify the story
+* Vary link placement naturally:
+
+  * middle of email
+  * near end
+  * after signature
+  * embedded softly in a sentence
+* Do not place links identically every time.
+
+EMOJI RULES:
+
+* Use emojis naturally and sparingly.
+* Emojis should feel human and casual.
+* Do not overload emails with emojis.
+* Vary emoji use between emails.
+* Some emails should contain no emojis at all.
 
 PHOTO VARIATION RULES:
 
 * Use different combinations of attached photos naturally across emails.
-* Never mention the exact same photo wording repeatedly.
+* Never describe photos the same way repeatedly.
 * Some emails should:
 
-    * include 1 photo
-    * include 2 photos
-    * include 3 photos
-    * include no photos at all
-* Mention photos casually and naturally.
-* The photos should feel documentary and authentic, not promotional.
-* Avoid dramatic phrases like:
+  * include 1 photo
+  * include 2 photos
+  * include 3 photos
+  * include no photos
+* Some emails should mention photos casually.
+* Some emails should attach photos without mentioning them.
+* The photos must feel documentary and personal, not promotional.
+* Avoid phrases like:
 
-    * ""shocking images""
-    * ""look at this tragedy""
-    * ""exclusive photos""
-* Some emails should not mention photos even if photos are attached.
-* Rotate emotional focus between:
+  * “shocking images”
+  * “exclusive photos”
+  * “look at this tragedy”
+* Rotate photo focus naturally between:
 
-    * workspace
-    * family
-    * rebuilding
-    * remote work
-    * internet/electricity struggles
-    * solar setup
-    * hope and resilience
+  * workspace
+  * temporary shelter
+  * laptop/work setup
+  * solar setup
+  * family corner
+  * rebuilding efforts
+  * daily routine
+  * nearby surroundings
+  * internet/electricity setup
 
-EMAIL VARIATION REQUIREMENTS:
+EMAIL LENGTH VARIATION:
 
-* Generate at least 25 completely different emails.
-* Every email must have:
+Generate mixed lengths:
 
-    * different opening
-    * different flow
-    * different sentence structure
-    * different emotional emphasis
-* Generate:
+* very short emails
+* medium conversational emails
+* longer storytelling emails
 
-    * short emails
-    * medium emails
-    * longer storytelling emails
-* Some emails should start with:
+Some emails should:
 
-    * a personal thought
-    * a daily life moment
-    * gratitude
-    * a small story
-    * a calm introduction
-    * a simple check-in
+* start immediately with a thought
+* begin with gratitude
+* begin with a normal daily moment
+* sound like a calm update
+* sound like a personal reflection
+* feel like a simple message sent late at night
 
-DELIVERABILITY OPTIMIZATION:
+SIGNATURE VARIATION RULES:
 
-* Reduce repetitive patterns across all emails.
-* Make every email appear manually typed.
-* Avoid identical signatures every time.
-* Slightly vary sign-offs naturally.
-* Keep link placement inconsistent:
+* Never use the exact same signature repeatedly.
+* Slightly vary names/sign-offs naturally.
+* Some examples styles:
 
-    * sometimes middle
-    * sometimes end
-    * sometimes after the signature
-* Some emails should ask mainly for sharing/support instead of donations.
+  * “Mahmoud”
+  * “— Mahmoud from Gaza”
+  * “Thanks for reading”
+  * “Wishing you peace”
+  * “From Gaza with hope”
+* Do not repeat these excessively.
 
 ORIGINAL STORY CONTEXT:
 
-""My brothers and I are freelancers from Gaza who used to work in programming and web development before the war changed our lives completely.
+“My brothers and I are freelancers from Gaza who used to work in programming and web development before the war changed our lives completely.
 
-We lost our home, workspace, and income, but we are trying to rebuild with dignity and hope.
+We lost our home, workspace, and source of income, but we are trying to rebuild with dignity and hope.
 
-Our goal is to create a small safe shelter and a solar-powered workspace so we can continue working online and supporting our family again.""
+Our goal is to create a small safe shelter and a solar-powered workspace so we can continue working online and supporting our family again.”
 
-OUTPUT FORMAT:
-For every generated email include:
-
-1. Subject line
-2. Email body
-3. Suggested photo count
-4. Suggested photo type to attach
-
-Examples of photo types:
-
-* workspace photo
-* family corner
-* laptop setup
-* solar battery setup
-* daily life moment
-* damaged area nearby
-* temporary shelter
-* internet/work setup
-
-IMPORTANT:
-The emails must feel human, personal, calm, and trustworthy - not like mass marketing campaigns.
+PHOTO LINKS:
 https://d2g8igdw686xgo.cloudfront.net/98533411_177124836350997_r.jpg
 https://d2g8igdw686xgo.cloudfront.net/98533411_1771248496480517_r.jpg
 https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495813018_r.jpg
 https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495575832_r.jpg
 https://images.gofundme.com/0nhw1u4UFekT2EATVPKhFNDN0oI=/720x405/https://d2g8igdw686xgo.cloudfront.net/98533411_1771246676920317_r.png
 
-Campaign links:
-https://www.gofundme.com/f/gaza-war-recovery-temporary-shelter-and-livelihood?attribution_id=sl:7a54d6ef-76c0-4270-bd84-a68eeaaa26ba&lang=en_US&ts=1778760655&utm_campaign=fp_below_fold&utm_content=amp20_t1&utm_medium=customer&utm_source=copy_link
-https://gofund.me/d016a7efa";
+CAMPAIGN LINKS:
+https://www.gofundme.com/f/gaza-war-recovery-temporary-shelter-and-livelihood
+https://gofund.me/d016a7efa
+
+OUTPUT FORMAT:
+For every generated email include:
+
+1. Unique Subject Line
+2. Email Body
+3. Suggested Photo Count
+4. Suggested Photo Type(s)
+5. Which campaign link to use
+6. Tone style used
+7. Approximate email length category
+
+IMPORTANT:
+The emails must feel personal, calm, trustworthy, and genuinely human — never like mass marketing campaigns or AI-generated templates.
+
+The final output should look like organically written one-to-one emails from real people trying to rebuild their lives with dignity.
+";
 
         private static readonly Regex EmailRegex = new Regex(
             @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
@@ -320,6 +423,30 @@ https://gofund.me/d016a7efa";
                 .OrderBy(t => t.Id)
                 .ToListAsync();
 
+            var aiRuns = await _aiGenerationRunRepository.GetAll()
+                .Where(r => r.OperationId == operationId)
+                .OrderByDescending(r => r.CreationTime)
+                .Take(20)
+                .ToListAsync();
+
+            var aiRunDtos = aiRuns
+                .Select(r => new AiGenerationRunDto
+                {
+                    Id = r.Id,
+                    Status = r.Status.ToString(),
+                    RequestedVariants = r.RequestedVariants,
+                    GeneratedVariants = r.GeneratedVariants,
+                    ModelRoute = r.ModelRoute,
+                    CorrelationId = r.CorrelationId,
+                    ErrorMessage = r.ErrorMessage,
+                    CreationTime = r.CreationTime,
+                    StartedAt = r.StartedAt,
+                    CompletedAt = r.CompletedAt
+                })
+                .ToList();
+
+            var latestAiRun = aiRunDtos.FirstOrDefault();
+
             var retryableCount = emails.Count(e => e.Status == SendStatus.Failed && e.RetryCount < MaxRetries);
 
             return new OperationDetailDto
@@ -343,6 +470,10 @@ https://gofund.me/d016a7efa";
                 AiTone = operation.AiTone,
                 AiLastGeneratedAt = operation.AiLastGeneratedAt,
                 AiTemplatesGenerated = operation.AiTemplatesGenerated,
+                AiGeneratedTemplateCount = templates.Count(t => t.IsAiGenerated),
+                AiManualTemplateCount = templates.Count(t => !t.IsAiGenerated),
+                LatestAiGenerationRun = latestAiRun,
+                AiGenerationRuns = aiRunDtos,
                 Templates = templates.Select(MapToTemplateDto).ToList(),
                 Emails = emails.Select(e => new OperationEmailDto
                 {
@@ -928,62 +1059,116 @@ https://gofund.me/d016a7efa";
 
             try
             {
-                var variants = await _aiTemplateGenerationService.GenerateTemplatesAsync(operation, historicalTemplates, input);
                 var generatedTemplates = new List<EmailTemplateDto>();
+                var totalRequested = Math.Max(1, input.VariantCount);
+                var remaining = totalRequested;
 
-                foreach (var variant in variants)
+                while (remaining > 0)
                 {
-                    var version = new AiGeneratedTemplateVersion
+                    if (await IsGenerationCancelledAsync(operation.Id, generationRun.Id))
+                    {
+                        generationRun.Status = AiGenerationRunStatus.Cancelled;
+                        generationRun.ErrorMessage = "Cancelled by user.";
+                        generationRun.CompletedAt = Clock.Now;
+                        await _aiGenerationRunRepository.UpdateAsync(generationRun);
+                        await CurrentUnitOfWork.SaveChangesAsync();
+                        break;
+                    }
+
+                    var batchSize = Math.Min(AiGenerationBatchSize, remaining);
+                    var batchInput = new GenerateAiTemplatesInput
                     {
                         OperationId = operation.Id,
-                        GenerationRunId = generationRun.Id,
-                        Subject = variant.Subject,
-                        PreviewText = variant.PreviewText,
-                        BodyHtml = variant.BodyHtml,
-                        OutlineJson = variant.OutlineJson,
-                        ComponentOrderJson = variant.ComponentOrderJson,
-                        ModelName = variant.ModelName,
-                        PromptVersion = variant.PromptVersion,
-                        InputTokens = variant.InputTokens,
-                        OutputTokens = variant.OutputTokens,
-                        LatencyMs = variant.LatencyMs,
-                        SimilarityScore = variant.SimilarityScore,
-                        SubjectHash = ComputeSha256(variant.Subject),
-                        BodyHash = ComputeSha256(variant.BodyHtml),
-                        StructureHash = ComputeSha256($"{variant.OutlineJson}|{variant.ComponentOrderJson}")
+                        VariantCount = batchSize,
+                        Prompt = input.Prompt,
+                        Tone = input.Tone
                     };
 
-                    version = await _aiGeneratedTemplateVersionRepository.InsertAsync(version);
+                    var variants = await _aiTemplateGenerationService.GenerateTemplatesAsync(operation, historicalTemplates, batchInput);
+                    if (variants == null || variants.Count == 0)
+                    {
+                        break;
+                    }
+
+                    var batchGeneratedCount = 0;
+                    foreach (var variant in variants)
+                    {
+                        var version = new AiGeneratedTemplateVersion
+                        {
+                            OperationId = operation.Id,
+                            GenerationRunId = generationRun.Id,
+                            Subject = variant.Subject,
+                            PreviewText = variant.PreviewText,
+                            BodyHtml = variant.BodyHtml,
+                            OutlineJson = variant.OutlineJson,
+                            ComponentOrderJson = variant.ComponentOrderJson,
+                            ModelName = variant.ModelName,
+                            PromptVersion = variant.PromptVersion,
+                            InputTokens = variant.InputTokens,
+                            OutputTokens = variant.OutputTokens,
+                            LatencyMs = variant.LatencyMs,
+                            SimilarityScore = variant.SimilarityScore,
+                            SubjectHash = ComputeSha256(variant.Subject),
+                            BodyHash = ComputeSha256(variant.BodyHtml),
+                            StructureHash = ComputeSha256($"{variant.OutlineJson}|{variant.ComponentOrderJson}")
+                        };
+
+                        version = await _aiGeneratedTemplateVersionRepository.InsertAsync(version);
+                        await CurrentUnitOfWork.SaveChangesAsync();
+
+                        var template = new EmailTemplate
+                        {
+                            OperationId = operation.Id,
+                            Name = BuildAiTemplateName(generationRun.Id, generatedTemplates.Count + 1),
+                            Subject = variant.Subject,
+                            Body = variant.BodyHtml,
+                            PreviewText = variant.PreviewText,
+                            Weight = variant.Weight <= 0 ? 1 : variant.Weight,
+                            IsAiGenerated = true,
+                            SimilarityScore = variant.SimilarityScore,
+                            AiGenerationRunId = generationRun.Id,
+                            AiGeneratedVersionId = version.Id
+                        };
+
+                        template = await _templateRepository.InsertAsync(template);
+                        generatedTemplates.Add(MapToTemplateDto(template));
+                        historicalTemplates.Add(template);
+                        batchGeneratedCount++;
+                    }
+
+                    generationRun.GeneratedVariants = generatedTemplates.Count;
+                    await _aiGenerationRunRepository.UpdateAsync(generationRun);
                     await CurrentUnitOfWork.SaveChangesAsync();
 
-                    var template = new EmailTemplate
+                    if (batchGeneratedCount == 0)
                     {
-                        OperationId = operation.Id,
-                        Name = BuildAiTemplateName(generationRun.Id, generatedTemplates.Count + 1),
-                        Subject = variant.Subject,
-                        Body = variant.BodyHtml,
-                        PreviewText = variant.PreviewText,
-                        Weight = variant.Weight <= 0 ? 1 : variant.Weight,
-                        IsAiGenerated = true,
-                        SimilarityScore = variant.SimilarityScore,
-                        AiGenerationRunId = generationRun.Id,
-                        AiGeneratedVersionId = version.Id
-                    };
+                        break;
+                    }
 
-                    template = await _templateRepository.InsertAsync(template);
-                    generatedTemplates.Add(MapToTemplateDto(template));
+                    remaining -= batchGeneratedCount;
                 }
 
-                generationRun.Status = AiGenerationRunStatus.Completed;
-                generationRun.GeneratedVariants = generatedTemplates.Count;
-                generationRun.CompletedAt = Clock.Now;
+                var isCancelled = generationRun.Status == AiGenerationRunStatus.Cancelled
+                    || await IsGenerationCancelledAsync(operation.Id, generationRun.Id);
 
-                operation.AiGenerationMode = AiGenerationMode.PreGeneratedPool;
+                if (isCancelled)
+                {
+                    generationRun.Status = AiGenerationRunStatus.Cancelled;
+                    generationRun.CompletedAt = Clock.Now;
+                    operation.AiTemplatesGenerated = false;
+                }
+                else
+                {
+                    generationRun.Status = AiGenerationRunStatus.Completed;
+                    generationRun.CompletedAt = Clock.Now;
+                    operation.AiTemplatesGenerated = generationRun.GeneratedVariants >= totalRequested;
+                    operation.AiLastGeneratedAt = Clock.Now;
+                    operation.AiGenerationMode = AiGenerationMode.PreGeneratedPool;
+                }
+
                 operation.AiVariantCount = input.VariantCount;
                 operation.AiPrompt = input.Prompt;
                 operation.AiTone = input.Tone;
-                operation.AiLastGeneratedAt = Clock.Now;
-                operation.AiTemplatesGenerated = true;
 
                 await _aiGenerationRunRepository.UpdateAsync(generationRun);
                 await _operationRepository.UpdateAsync(operation);
@@ -1009,6 +1194,28 @@ https://gofund.me/d016a7efa";
                 await CurrentUnitOfWork.SaveChangesAsync();
                 throw;
             }
+        }
+
+        public async Task StopAiGenerationAsync(long operationId)
+        {
+            var operation = await _operationRepository.GetAsync(operationId);
+
+            var runningRuns = await _aiGenerationRunRepository.GetAll()
+                .Where(r => r.OperationId == operationId && r.Status == AiGenerationRunStatus.Running)
+                .ToListAsync();
+
+            foreach (var run in runningRuns)
+            {
+                run.Status = AiGenerationRunStatus.Cancelled;
+                run.ErrorMessage = "Cancelled by user.";
+                run.CompletedAt = Clock.Now;
+                await _aiGenerationRunRepository.UpdateAsync(run);
+            }
+
+            operation.AiGenerationMode = AiGenerationMode.Disabled;
+            operation.AiTemplatesGenerated = false;
+            await _operationRepository.UpdateAsync(operation);
+            await CurrentUnitOfWork.SaveChangesAsync();
         }
 
         public async Task DeleteTemplateAsync(long templateId)
@@ -1126,6 +1333,26 @@ https://gofund.me/d016a7efa";
                 AiGenerationRunId = t.AiGenerationRunId,
                 AiGeneratedVersionId = t.AiGeneratedVersionId
             };
+
+        private async Task<bool> IsGenerationCancelledAsync(long operationId, long runId)
+        {
+            var operationState = await _operationRepository.GetAll()
+                .Where(o => o.Id == operationId)
+                .Select(o => o.AiGenerationMode)
+                .FirstOrDefaultAsync();
+
+            if (operationState == AiGenerationMode.Disabled)
+            {
+                return true;
+            }
+
+            var runStatus = await _aiGenerationRunRepository.GetAll()
+                .Where(r => r.Id == runId)
+                .Select(r => r.Status)
+                .FirstOrDefaultAsync();
+
+            return runStatus == AiGenerationRunStatus.Cancelled;
+        }
 
         private static string BuildAiTemplateName(long generationRunId, int index)
             => $"AI Variant #{index} (Run {generationRunId})";
