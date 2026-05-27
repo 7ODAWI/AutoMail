@@ -125,26 +125,31 @@ namespace AutoMail.BulkEmail.Ai
                 {
                     aggregated.AddRange(generated.Variants.Take(batchSize));
                 }
-                else
-                {
-                    var fallbackVariants = BuildFallbackVariants(batchRequest, model);
-                    var uniqueFallback = KeepUniqueVariants(
-                            fallbackVariants,
-                            batchRequest.HistoricalTemplates,
-                            _options.SimilarityThreshold)
-                        .Take(batchSize)
-                        .ToList();
+                //else
+                //{
+                //    if (!_options.AllowFallback)
+                //    {
+                //        throw new UserFriendlyException("Gemini generation failed for this batch. No fallback template was created. Please verify API key/quota/model and retry.");
+                //    }
 
-                    if (uniqueFallback.Count == 0)
-                    {
-                        uniqueFallback = fallbackVariants
-                            .Select(v => NormalizeVariant(v, model))
-                            .Take(batchSize)
-                            .ToList();
-                    }
+                //    var fallbackVariants = BuildFallbackVariants(batchRequest, model);
+                //    var uniqueFallback = KeepUniqueVariants(
+                //            fallbackVariants,
+                //            batchRequest.HistoricalTemplates,
+                //            _options.SimilarityThreshold)
+                //        .Take(batchSize)
+                //        .ToList();
 
-                    aggregated.AddRange(uniqueFallback);
-                }
+                //    if (uniqueFallback.Count == 0)
+                //    {
+                //        uniqueFallback = fallbackVariants
+                //            .Select(v => NormalizeVariant(v, model))
+                //            .Take(batchSize)
+                //            .ToList();
+                //    }
+
+                //    aggregated.AddRange(uniqueFallback);
+                //}
 
                 remaining = request.Operation.VariantCount - aggregated.Count;
                 batchIndex++;

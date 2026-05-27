@@ -254,3 +254,5 @@ paket-files/
 src/AutoMail.Web.Mvc/secrets.json
 src/AutoMail.Web.Host/secrets.json
 src/AutoMail.Migrator/secrets.json
+/src/AutoMail.Web.Mvc/appsettings.json
+/src/AutoMail.Web.Mvc/appsettings.Staging.json

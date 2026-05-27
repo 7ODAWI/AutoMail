@@ -13,6 +13,7 @@ namespace AutoMail.BulkEmail.Ai
         public int TimeoutMs { get; set; } = 120000;
         public double Temperature { get; set; } = 0.9;
         public double SimilarityThreshold { get; set; } = 0.78;
+        public bool AllowFallback { get; set; } = false;
 
         public static GeminiAiOptions FromConfiguration(IConfiguration configuration)
         {
