@@ -8,7 +8,7 @@ namespace AutoMail.BulkEmail.Dto
         [Required]
         public long OperationId { get; set; }
 
-        [Range(1, 20)]
+        [Range(1, 10000000)]
         public int VariantCount { get; set; } = 3;
 
         [MaxLength(4000)]

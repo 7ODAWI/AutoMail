@@ -8,8 +8,8 @@ namespace AutoMail.BulkEmail.Ai
         public bool Enabled { get; set; } = true;
         public string ApiKey { get; set; }
         public string ModelRoute { get; set; } = "balanced";
-        public string QualityModel { get; set; } = "gemini-2.5-pro";
-        public string SpeedModel { get; set; } = "gemini-2.5-flash";
+        public string QualityModel { get; set; } = "gemini-flash-latest";
+        public string SpeedModel { get; set; } = "gemini-flash-latest";
         public int TimeoutMs { get; set; } = 120000;
         public double Temperature { get; set; } = 0.9;
         public double SimilarityThreshold { get; set; } = 0.78;
@@ -31,8 +31,8 @@ namespace AutoMail.BulkEmail.Ai
         public void Normalize()
         {
             ModelRoute = string.IsNullOrWhiteSpace(ModelRoute) ? "balanced" : ModelRoute.Trim().ToLowerInvariant();
-            QualityModel = string.IsNullOrWhiteSpace(QualityModel) ? "gemini-2.5-pro" : QualityModel.Trim();
-            SpeedModel = string.IsNullOrWhiteSpace(SpeedModel) ? "gemini-2.5-flash" : SpeedModel.Trim();
+            QualityModel = string.IsNullOrWhiteSpace(QualityModel) ? "gemini-flash-latest" : QualityModel.Trim();
+            SpeedModel = string.IsNullOrWhiteSpace(SpeedModel) ? "gemini-flash-latest" : SpeedModel.Trim();
             TimeoutMs = Math.Max(5000, TimeoutMs);
             Temperature = Math.Clamp(Temperature, 0, 2);
             SimilarityThreshold = Math.Clamp(SimilarityThreshold, 0.4, 0.95);

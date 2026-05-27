@@ -40,13 +40,15 @@ namespace AutoMail.Project_Models
         [MaxLength(MaxAiPromptLength)]
         public string AiPrompt { get; set; }
 
-        [Range(0, 20)]
+        [Range(0, 10000000)]
         public int AiVariantCount { get; set; }
 
         [MaxLength(MaxAiToneLength)]
         public string AiTone { get; set; }
 
         public DateTime? AiLastGeneratedAt { get; set; }
+
+        public bool AiTemplatesGenerated { get; set; }
     }
 
     [Table("EmailTemplates")]

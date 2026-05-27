@@ -18,7 +18,7 @@ namespace AutoMail.BulkEmail.Dto
         [Required]
         public string Body { get; set; }
 
-        public AiGenerationMode AiGenerationMode { get; set; } = AiGenerationMode.Disabled;
+        public AiGenerationMode AiGenerationMode { get; set; } = AiGenerationMode.PreGeneratedPool;
 
         [Range(0, 20)]
         public int AiVariantCount { get; set; }

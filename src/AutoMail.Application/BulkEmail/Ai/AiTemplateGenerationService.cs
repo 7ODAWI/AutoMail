@@ -2,33 +2,39 @@ using Abp.Dependency;
 using Abp.UI;
 using AutoMail.BulkEmail.Dto;
 using AutoMail.Project_Models;
+using Google.GenAI;
+using Google.GenAI.Types;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 
 namespace AutoMail.BulkEmail.Ai
 {
     public class AiTemplateGenerationService : IAiTemplateGenerationService, ITransientDependency
     {
+        private const int MaxVariantsPerRequest = 50;
+
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false
         };
 
-        private static readonly HttpClient HttpClient = new HttpClient();
         private readonly GeminiAiOptions _options;
+        private readonly Client _genAiClient;
 
         public AiTemplateGenerationService(IConfiguration configuration)
         {
             _options = GeminiAiOptions.FromConfiguration(configuration);
+            if (_options.Enabled && !string.IsNullOrWhiteSpace(_options.ApiKey))
+            {
+                _genAiClient = new Client(apiKey: _options.ApiKey);
+            }
         }
 
         public async Task<List<AiTemplateVariantDto>> GenerateTemplatesAsync(
@@ -57,7 +63,9 @@ namespace AutoMail.BulkEmail.Ai
                     Body = operation.Body,
                     Prompt = string.IsNullOrWhiteSpace(input.Prompt) ? operation.AiPrompt : input.Prompt,
                     Tone = string.IsNullOrWhiteSpace(input.Tone) ? operation.AiTone : input.Tone,
-                    VariantCount = input.VariantCount
+                    VariantCount = input.VariantCount,
+                    BatchIndex = 1,
+                    TotalRequestedVariants = input.VariantCount
                 },
                 HistoricalTemplates = BuildTemplateContexts(operation, historicalTemplates)
             };
@@ -101,22 +109,95 @@ namespace AutoMail.BulkEmail.Ai
             CancellationToken cancellationToken)
         {
             var model = ResolveModel(request.Operation.VariantCount);
-            var generated = await TryGenerateWithGeminiAsync(request, model, cancellationToken);
-            if (generated != null && generated.Variants?.Count > 0)
+            var aggregated = new List<EngineVariant>();
+            var remaining = Math.Max(1, request.Operation.VariantCount);
+            var batchIndex = 0;
+
+            while (remaining > 0)
             {
-                return generated;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var batchSize = Math.Min(MaxVariantsPerRequest, remaining);
+                var batchRequest = CreateBatchRequest(request, aggregated, batchSize, batchIndex + 1);
+                var generated = await TryGenerateWithGeminiAsync(batchRequest, model, cancellationToken);
+
+                if (generated != null && generated.Variants?.Count > 0)
+                {
+                    aggregated.AddRange(generated.Variants.Take(batchSize));
+                }
+                else
+                {
+                    var fallbackVariants = BuildFallbackVariants(batchRequest, model);
+                    var uniqueFallback = KeepUniqueVariants(
+                            fallbackVariants,
+                            batchRequest.HistoricalTemplates,
+                            _options.SimilarityThreshold)
+                        .Take(batchSize)
+                        .ToList();
+
+                    if (uniqueFallback.Count == 0)
+                    {
+                        uniqueFallback = fallbackVariants
+                            .Select(v => NormalizeVariant(v, model))
+                            .Take(batchSize)
+                            .ToList();
+                    }
+
+                    aggregated.AddRange(uniqueFallback);
+                }
+
+                remaining = request.Operation.VariantCount - aggregated.Count;
+                batchIndex++;
             }
 
-            var fallbackVariants = BuildFallbackVariants(request, model);
             return new EngineGenerateResponse
             {
                 Success = true,
-                Variants = KeepUniqueVariants(
-                    fallbackVariants,
-                    request.HistoricalTemplates,
-                    _options.SimilarityThreshold)
+                Variants = aggregated
                     .Take(request.Operation.VariantCount)
                     .ToList()
+            };
+        }
+
+        private static EngineGenerateRequest CreateBatchRequest(
+            EngineGenerateRequest source,
+            List<EngineVariant> acceptedVariants,
+            int batchSize,
+            int batchIndex)
+        {
+            var history = new List<EngineTemplateContext>();
+            if (source.HistoricalTemplates != null && source.HistoricalTemplates.Count > 0)
+            {
+                history.AddRange(source.HistoricalTemplates);
+            }
+
+            if (acceptedVariants != null && acceptedVariants.Count > 0)
+            {
+                history.AddRange(acceptedVariants.Select(v => new EngineTemplateContext
+                {
+                    Subject = v.Subject,
+                    PreviewText = v.PreviewText,
+                    Body = v.BodyHtml,
+                    Weight = v.Weight,
+                    IsAiGenerated = true
+                }));
+            }
+
+            return new EngineGenerateRequest
+            {
+                CorrelationId = $"{source.CorrelationId}-b{batchIndex}",
+                Operation = new EngineOperationContext
+                {
+                    OperationId = source.Operation.OperationId,
+                    Subject = source.Operation.Subject,
+                    Body = source.Operation.Body,
+                    Prompt = source.Operation.Prompt,
+                    Tone = source.Operation.Tone,
+                    VariantCount = batchSize,
+                    BatchIndex = batchIndex,
+                    TotalRequestedVariants = source.Operation.TotalRequestedVariants
+                },
+                HistoricalTemplates = history
             };
         }
 
@@ -130,77 +211,77 @@ namespace AutoMail.BulkEmail.Ai
                 return null;
             }
 
-            var prompt = BuildPrompt(request, model);
-            var endpoint =
-                $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={Uri.EscapeDataString(_options.ApiKey)}";
-
-            var payload = new
+            if (_genAiClient == null)
             {
-                contents = new[]
-                {
-                    new
-                    {
-                        parts = new[] { new { text = prompt } }
-                    }
-                },
-                generationConfig = new
-                {
-                    temperature = _options.Temperature,
-                    responseMimeType = "application/json"
-                }
+                return null;
+            }
+
+            var prompt = BuildPrompt(request, model);
+            var config = new GenerateContentConfig
+            {
+                Temperature = _options.Temperature,
+                ResponseMimeType = "application/json"
             };
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(_options.TimeoutMs);
 
-            var response = await HttpClient.PostAsJsonAsync(endpoint, payload, timeoutCts.Token);
-            if (!response.IsSuccessStatusCode)
+            try
+            {
+                var sdkResponseTask = _genAiClient.Models.GenerateContentAsync(
+                    model: model,
+                    contents: prompt,
+                    config: config);
+
+                var response = await sdkResponseTask.WaitAsync(timeoutCts.Token);
+                var jsonText = ExtractGeminiJsonText(response);
+                if (string.IsNullOrWhiteSpace(jsonText))
+                {
+                    return null;
+                }
+
+                var parsed = JsonSerializer.Deserialize<EngineGenerateResponse>(jsonText, JsonOptions);
+                if (parsed == null || parsed.Variants == null)
+                {
+                    return null;
+                }
+
+                parsed.Success = true;
+                parsed.Variants = KeepUniqueVariants(
+                        parsed.Variants.Select(v => NormalizeVariant(v, model)).ToList(),
+                        request.HistoricalTemplates,
+                        _options.SimilarityThreshold)
+                    .Take(request.Operation.VariantCount)
+                    .ToList();
+
+                return parsed;
+            }
+            catch (OperationCanceledException)
             {
                 return null;
             }
-
-            var raw = await response.Content.ReadAsStringAsync(timeoutCts.Token);
-            var jsonText = ExtractGeminiJsonText(raw);
-            if (string.IsNullOrWhiteSpace(jsonText))
+            catch
             {
                 return null;
             }
-
-            var parsed = JsonSerializer.Deserialize<EngineGenerateResponse>(jsonText, JsonOptions);
-            if (parsed == null || parsed.Variants == null)
-            {
-                return null;
-            }
-
-            parsed.Success = true;
-            parsed.Variants = KeepUniqueVariants(
-                    parsed.Variants.Select(v => NormalizeVariant(v, model)).ToList(),
-                    request.HistoricalTemplates,
-                    _options.SimilarityThreshold)
-                .Take(request.Operation.VariantCount)
-                .ToList();
-
-            return parsed;
         }
 
-        private static string ExtractGeminiJsonText(string raw)
+        private static string ExtractGeminiJsonText(GenerateContentResponse response)
         {
             try
             {
-                using var doc = JsonDocument.Parse(raw);
-                var root = doc.RootElement;
-                if (!root.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+                if (response?.Candidates == null || response.Candidates.Count == 0)
                 {
                     return null;
                 }
 
-                var parts = candidates[0].GetProperty("content").GetProperty("parts");
-                if (parts.GetArrayLength() == 0)
+                var candidate = response.Candidates[0];
+                if (candidate?.Content?.Parts == null || candidate.Content.Parts.Count == 0)
                 {
                     return null;
                 }
 
-                return parts[0].GetProperty("text").GetString();
+                return candidate.Content.Parts[0].Text;
             }
             catch
             {
@@ -248,9 +329,9 @@ namespace AutoMail.BulkEmail.Ai
                 ctaSamples = request.HistoricalTemplates
                     .SelectMany(t => ExtractCtaPhrases(t.Body))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(8)
+                    .Take(100)
                     .ToList(),
-                subjectSamples = request.HistoricalTemplates.Select(t => t.Subject).Where(x => !string.IsNullOrWhiteSpace(x)).Take(10).ToList()
+                subjectSamples = request.HistoricalTemplates.Select(t => t.Subject).Where(x => !string.IsNullOrWhiteSpace(x)).Take(100).ToList()
             };
 
             return $@"You are an expert email campaign designer.
@@ -594,6 +675,8 @@ Historical style summary:
             public string Prompt { get; set; }
             public string Tone { get; set; }
             public int VariantCount { get; set; }
+            public int BatchIndex { get; set; }
+            public int TotalRequestedVariants { get; set; }
         }
 
         private class EngineTemplateContext

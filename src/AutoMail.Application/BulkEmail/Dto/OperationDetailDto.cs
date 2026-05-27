@@ -25,6 +25,7 @@ namespace AutoMail.BulkEmail.Dto
         public string AiPrompt { get; set; }
         public string AiTone { get; set; }
         public DateTime? AiLastGeneratedAt { get; set; }
+        public bool AiTemplatesGenerated { get; set; }
         public List<EmailTemplateDto> Templates { get; set; } = new();
         public List<OperationEmailDto> Emails { get; set; } = new();
     }

@@ -26,6 +26,139 @@ namespace AutoMail.BulkEmail
     {
         private const int MaxRetries = 3;
         private static readonly string[] AllowedExtensions = { ".xlsx", ".csv" };
+                private const string DefaultAiPrompt = @"You are an expert human-style email copywriter and email deliverability specialist.
+
+Your task is to generate multiple unique fundraising and personal outreach emails based on the story below.
+
+The emails must feel authentic, manually written, emotionally real, and optimized to reduce spam detection.
+
+MAIN GOAL:
+Generate highly varied email versions from three freelancers in Gaza trying to rebuild their lives and workspace after the war.
+
+ANTI-SPAM & HUMANIZATION RULES:
+
+* Every email must look naturally handwritten by a real person.
+* Avoid repetitive wording, structure, and formatting.
+* Avoid corporate or marketing tone.
+* Avoid excessive emotional exaggeration.
+* Avoid spam-trigger phrases such as:
+
+    * ""urgent""
+    * ""act now""
+    * ""donate immediately""
+    * ""click here""
+    * ""limited time""
+    * excessive punctuation
+    * ALL CAPS
+* Use clean, natural formatting.
+* Keep emails conversational and believable.
+* Vary sentence lengths and openings.
+* Some emails should feel casual and soft.
+* Some should feel more personal and reflective.
+* Some should sound like life updates rather than fundraising.
+
+PHOTO VARIATION RULES:
+
+* Use different combinations of attached photos naturally across emails.
+* Never mention the exact same photo wording repeatedly.
+* Some emails should:
+
+    * include 1 photo
+    * include 2 photos
+    * include 3 photos
+    * include no photos at all
+* Mention photos casually and naturally.
+* The photos should feel documentary and authentic, not promotional.
+* Avoid dramatic phrases like:
+
+    * ""shocking images""
+    * ""look at this tragedy""
+    * ""exclusive photos""
+* Some emails should not mention photos even if photos are attached.
+* Rotate emotional focus between:
+
+    * workspace
+    * family
+    * rebuilding
+    * remote work
+    * internet/electricity struggles
+    * solar setup
+    * hope and resilience
+
+EMAIL VARIATION REQUIREMENTS:
+
+* Generate at least 25 completely different emails.
+* Every email must have:
+
+    * different opening
+    * different flow
+    * different sentence structure
+    * different emotional emphasis
+* Generate:
+
+    * short emails
+    * medium emails
+    * longer storytelling emails
+* Some emails should start with:
+
+    * a personal thought
+    * a daily life moment
+    * gratitude
+    * a small story
+    * a calm introduction
+    * a simple check-in
+
+DELIVERABILITY OPTIMIZATION:
+
+* Reduce repetitive patterns across all emails.
+* Make every email appear manually typed.
+* Avoid identical signatures every time.
+* Slightly vary sign-offs naturally.
+* Keep link placement inconsistent:
+
+    * sometimes middle
+    * sometimes end
+    * sometimes after the signature
+* Some emails should ask mainly for sharing/support instead of donations.
+
+ORIGINAL STORY CONTEXT:
+
+""My brothers and I are freelancers from Gaza who used to work in programming and web development before the war changed our lives completely.
+
+We lost our home, workspace, and income, but we are trying to rebuild with dignity and hope.
+
+Our goal is to create a small safe shelter and a solar-powered workspace so we can continue working online and supporting our family again.""
+
+OUTPUT FORMAT:
+For every generated email include:
+
+1. Subject line
+2. Email body
+3. Suggested photo count
+4. Suggested photo type to attach
+
+Examples of photo types:
+
+* workspace photo
+* family corner
+* laptop setup
+* solar battery setup
+* daily life moment
+* damaged area nearby
+* temporary shelter
+* internet/work setup
+
+IMPORTANT:
+The emails must feel human, personal, calm, and trustworthy - not like mass marketing campaigns.
+https://d2g8igdw686xgo.cloudfront.net/98533411_177124836350997_r.jpg
+https://d2g8igdw686xgo.cloudfront.net/98533411_1771248496480517_r.jpg
+https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495813018_r.jpg
+https://d2g8igdw686xgo.cloudfront.net/98533411_1771248495575832_r.jpg
+https://images.gofundme.com/0nhw1u4UFekT2EATVPKhFNDN0oI=/720x405/https://d2g8igdw686xgo.cloudfront.net/98533411_1771246676920317_r.png
+
+Campaign links:
+https://www.gofundme.com/f/gaza-war-recovery-temporary-shelter-and-livelihood?attribution_id=sl:7a54d6ef-76c0-4270-bd84-a68eeaaa26ba&lang=en_US&ts=1778760655&utm_campaign=fp_below_fold&utm_content=amp20_t1&utm_medium=customer&utm_source=copy_link
+https://gofund.me/d016a7efa";
 
         private static readonly Regex EmailRegex = new Regex(
             @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
@@ -103,9 +236,10 @@ namespace AutoMail.BulkEmail
                 SentCount = 0,
                 FailedCount = 0,
                 AiGenerationMode = input.AiGenerationMode,
-                AiPrompt = input.AiPrompt,
+                AiPrompt = ResolveAiPrompt(input.AiPrompt),
                 AiTone = input.AiTone,
-                AiVariantCount = input.AiVariantCount
+                AiVariantCount = input.AiVariantCount,
+                AiTemplatesGenerated = false
             };
 
             operation = await _operationRepository.InsertAsync(operation);
@@ -124,20 +258,13 @@ namespace AutoMail.BulkEmail
 
             await CurrentUnitOfWork.SaveChangesAsync();
 
-            if (operation.AiGenerationMode == AiGenerationMode.PreGeneratedPool && operation.AiVariantCount > 0)
-            {
-                await GenerateAiTemplatesAsync(new GenerateAiTemplatesInput
-                {
-                    OperationId = operation.Id,
-                    VariantCount = operation.AiVariantCount,
-                    Prompt = operation.AiPrompt,
-                    Tone = operation.AiTone
-                });
-            }
+            await EnqueueAiGenerationIfNeededAsync(operation);
 
             // Enqueue background job only when starting immediately
             if (input.StartImmediately)
             {
+                await EnsureAiTemplatesReadyBeforeSendAsync(operation);
+
                 await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                     new BulkEmailJobArgs
                     {
@@ -214,6 +341,7 @@ namespace AutoMail.BulkEmail
                 AiPrompt = operation.AiPrompt,
                 AiTone = operation.AiTone,
                 AiLastGeneratedAt = operation.AiLastGeneratedAt,
+                AiTemplatesGenerated = operation.AiTemplatesGenerated,
                 Templates = templates.Select(MapToTemplateDto).ToList(),
                 Emails = emails.Select(e => new OperationEmailDto
                 {
@@ -267,6 +395,8 @@ namespace AutoMail.BulkEmail
             await _operationRepository.UpdateAsync(operation);
 
             await CurrentUnitOfWork.SaveChangesAsync();
+
+            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
 
             // Enqueue job
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
@@ -417,6 +547,8 @@ namespace AutoMail.BulkEmail
             await _operationRepository.UpdateAsync(operation);
             await CurrentUnitOfWork.SaveChangesAsync();
 
+            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
+
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs { OperationId = operationId });
         }
@@ -469,6 +601,8 @@ namespace AutoMail.BulkEmail
             await _operationRepository.UpdateAsync(operation);
             await CurrentUnitOfWork.SaveChangesAsync();
 
+            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
+
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs { OperationId = operationId });
         }
@@ -494,6 +628,8 @@ namespace AutoMail.BulkEmail
             if (!hasPendingEmails)
                 throw new UserFriendlyException("No pending emails found in this operation.");
 
+            await EnsureAiTemplatesReadyBeforeSendAsync(operation);
+
             await _backgroundJobManager.EnqueueAsync<BulkEmailSenderJob, BulkEmailJobArgs>(
                 new BulkEmailJobArgs { OperationId = operationId });
         }
@@ -509,12 +645,42 @@ namespace AutoMail.BulkEmail
             if (operation.Status != OperationStatus.Pending)
                 throw new UserFriendlyException("Only pending (draft) operations can be edited.");
 
+            var aiSettingsChanged = operation.AiGenerationMode != input.AiGenerationMode
+                || operation.AiVariantCount != input.AiVariantCount
+                || !string.Equals(operation.AiPrompt ?? string.Empty, input.AiPrompt ?? string.Empty, StringComparison.Ordinal)
+                || !string.Equals(operation.AiTone ?? string.Empty, input.AiTone ?? string.Empty, StringComparison.Ordinal);
+
             operation.Subject = input.Subject?.Trim();
             operation.Body = input.Body;
             operation.AiGenerationMode = input.AiGenerationMode;
             operation.AiVariantCount = input.AiVariantCount;
             operation.AiPrompt = input.AiPrompt;
             operation.AiTone = input.AiTone;
+
+            if (aiSettingsChanged)
+            {
+                var existingAiTemplates = await _templateRepository.GetAll()
+                    .Where(t => t.OperationId == input.Id && t.IsAiGenerated)
+                    .ToListAsync();
+
+                foreach (var template in existingAiTemplates)
+                {
+                    var referencingEmails = await _operationEmailRepository.GetAll()
+                        .Where(e => e.TemplateId == template.Id)
+                        .ToListAsync();
+                    foreach (var email in referencingEmails)
+                    {
+                        email.TemplateId = null;
+                        await _operationEmailRepository.UpdateAsync(email);
+                    }
+
+                    await _templateRepository.DeleteAsync(template.Id);
+                }
+
+                operation.AiLastGeneratedAt = null;
+                operation.AiTemplatesGenerated = false;
+            }
+
             await _operationRepository.UpdateAsync(operation);
 
             if (input.File != null && input.File.Length > 0)
@@ -558,6 +724,8 @@ namespace AutoMail.BulkEmail
             }
 
             await CurrentUnitOfWork.SaveChangesAsync();
+
+            await EnqueueAiGenerationIfNeededAsync(operation);
         }
 
         // ------------------------------------------------------------------ //
@@ -579,7 +747,8 @@ namespace AutoMail.BulkEmail
                 AiGenerationMode = original.AiGenerationMode,
                 AiVariantCount = original.AiVariantCount,
                 AiPrompt = original.AiPrompt,
-                AiTone = original.AiTone
+                AiTone = original.AiTone,
+                AiTemplatesGenerated = false
             };
             cloned = await _operationRepository.InsertAsync(cloned);
             await CurrentUnitOfWork.SaveChangesAsync();
@@ -677,6 +846,14 @@ namespace AutoMail.BulkEmail
             if (operation.Status == OperationStatus.InProgress)
                 throw new UserFriendlyException("Cannot generate AI templates for an in-progress operation.");
 
+            input.Prompt = ResolveAiPrompt(string.IsNullOrWhiteSpace(input.Prompt) ? operation.AiPrompt : input.Prompt);
+            if (!string.Equals(operation.AiPrompt, input.Prompt, StringComparison.Ordinal))
+            {
+                operation.AiPrompt = input.Prompt;
+                await _operationRepository.UpdateAsync(operation);
+                await CurrentUnitOfWork.SaveChangesAsync();
+            }
+
             var historicalTemplates = await _templateRepository.GetAll()
                 .OrderByDescending(t => t.CreationTime)
                 .Take(500)
@@ -752,6 +929,7 @@ namespace AutoMail.BulkEmail
                 operation.AiPrompt = input.Prompt;
                 operation.AiTone = input.Tone;
                 operation.AiLastGeneratedAt = Clock.Now;
+                operation.AiTemplatesGenerated = true;
 
                 await _aiGenerationRunRepository.UpdateAsync(generationRun);
                 await _operationRepository.UpdateAsync(operation);
@@ -771,6 +949,8 @@ namespace AutoMail.BulkEmail
                 generationRun.Status = AiGenerationRunStatus.Failed;
                 generationRun.ErrorMessage = ex.Message;
                 generationRun.CompletedAt = Clock.Now;
+                operation.AiTemplatesGenerated = false;
+                await _operationRepository.UpdateAsync(operation);
                 await _aiGenerationRunRepository.UpdateAsync(generationRun);
                 await CurrentUnitOfWork.SaveChangesAsync();
                 throw;
@@ -820,8 +1000,62 @@ namespace AutoMail.BulkEmail
                 StopReason = op.StopReason,
                 AiGenerationMode = op.AiGenerationMode,
                 AiVariantCount = op.AiVariantCount,
-                AiLastGeneratedAt = op.AiLastGeneratedAt
+                AiLastGeneratedAt = op.AiLastGeneratedAt,
+                AiTemplatesGenerated = op.AiTemplatesGenerated
             };
+        }
+
+        private async Task EnqueueAiGenerationIfNeededAsync(EmailOperation operation)
+        {
+            if (operation == null)
+            {
+                return;
+            }
+
+            if (operation.AiGenerationMode != AiGenerationMode.PreGeneratedPool || operation.AiVariantCount <= 0)
+            {
+                return;
+            }
+
+            if (operation.AiTemplatesGenerated)
+            {
+                return;
+            }
+
+            await _backgroundJobManager.EnqueueAsync<AiTemplateGenerationJob, AiTemplateGenerationJobArgs>(
+                new AiTemplateGenerationJobArgs
+                {
+                    OperationId = operation.Id
+                });
+        }
+
+        private async Task EnsureAiTemplatesReadyBeforeSendAsync(EmailOperation operation)
+        {
+            if (operation == null)
+            {
+                return;
+            }
+
+            if (operation.AiGenerationMode != AiGenerationMode.PreGeneratedPool || operation.AiVariantCount <= 0)
+            {
+                return;
+            }
+
+            var normalizedPrompt = ResolveAiPrompt(operation.AiPrompt);
+            if (!string.Equals(operation.AiPrompt, normalizedPrompt, StringComparison.Ordinal))
+            {
+                operation.AiPrompt = normalizedPrompt;
+                await _operationRepository.UpdateAsync(operation);
+                await CurrentUnitOfWork.SaveChangesAsync();
+            }
+
+            if (operation.AiTemplatesGenerated)
+            {
+                return;
+            }
+
+            await EnqueueAiGenerationIfNeededAsync(operation);
+            throw new UserFriendlyException("AI template generation is running in background. Please retry operation start after generation completes.");
         }
 
         private static EmailTemplateDto MapToTemplateDto(EmailTemplate t) =>
@@ -852,6 +1086,17 @@ namespace AutoMail.BulkEmail
             var bytes = Encoding.UTF8.GetBytes(value);
             var hash = SHA256.HashData(bytes);
             return Convert.ToHexString(hash);
+        }
+
+        private static string ResolveAiPrompt(string prompt)
+        {
+            var effectivePrompt = string.IsNullOrWhiteSpace(prompt)
+                ? DefaultAiPrompt
+                : prompt.Trim();
+
+            return effectivePrompt.Length <= EmailOperation.MaxAiPromptLength
+                ? effectivePrompt
+                : effectivePrompt.Substring(0, EmailOperation.MaxAiPromptLength);
         }
 
         private static IReadOnlyList<string> ParseExcel(Stream stream, int columnIndex)

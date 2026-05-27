@@ -85,6 +85,8 @@
                     <input type="number" class="form-control" id="email-column-index" value="0" min="0" max="99" style="max-width:160px" />
                 </div>
             </div>
+        </div>
+    </div>
 
     <!-- ═══════════ Compose Message ═══════════ -->
     <div class="card card-success card-outline">
@@ -99,6 +101,52 @@
             <div class="form-group mb-0">
                 <label>Body <span class="text-danger">*</span></label>
                 <div id="email-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ AI Settings ═══════════ -->
+    <div class="card card-warning card-outline">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-robot mr-1"></i> AI Template Generation</h3>
+        </div>
+        <div class="card-body">
+            <div class="form-group mb-2">
+                <label class="mb-1">AI Mode</label>
+                <select class="form-control" id="ai-generation-mode" style="max-width:320px">
+                    <option value="0">Disabled (Manual templates only)</option>
+                    <option value="1">Pre-generate template pool before send</option>
+                </select>
+                <small class="text-muted">If settings change, previous AI templates are replaced on next start.</small>
+            </div>
+
+            <div id="ai-settings-panel" style="display:none">
+                <div class="form-row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Variant Count</label>
+                            <input type="number" class="form-control" id="ai-variant-count" min="1" max="20" value="3" />
+                            <small class="text-muted">Number of AI-generated templates.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Tone</label>
+                            <select class="form-control" id="ai-tone">
+                                <option value="">Auto detect</option>
+                                <option value="professional">Professional</option>
+                                <option value="promotional">Promotional</option>
+                                <option value="announcement">Announcement</option>
+                                <option value="warm">Warm</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-0">
+                    <label>AI Prompt</label>
+                    <textarea class="form-control" id="ai-prompt" rows="3" maxlength="4000" placeholder="Optional campaign prompt for AI generation"></textarea>
+                </div>
             </div>
         </div>
     </div>
@@ -332,6 +380,12 @@
         function hideLoading()  { $('#page-overlay').removeClass('show'); }
         function getToken()     { return $('input[name="__RequestVerificationToken"]').val(); }
         function escapeHtml(s)  { return s ? $('<span>').text(s).html() : ''; }
+        function getAiMode()    { return parseInt($('#ai-generation-mode').val(), 10) || 0; }
+
+        function toggleAiPanel() {
+            var enabled = getAiMode() === 1;
+            $('#ai-settings-panel').toggle(enabled);
+        }
 
         function toast(icon, title, text) {
             Swal.fire({ icon: icon, title: title, text: text,
@@ -399,6 +453,11 @@
                     }
                     $('#email-subject').val(op.subject || '');
                     $('#email-body').summernote('code', op.body || '');
+                    $('#ai-generation-mode').val((op.aiGenerationMode || 0).toString());
+                    $('#ai-variant-count').val(op.aiVariantCount || 3);
+                    $('#ai-prompt').val(op.aiPrompt || '');
+                    $('#ai-tone').val(op.aiTone || '');
+                    toggleAiPanel();
                     $('#current-recipients-info').html(
                         '<i class="fas fa-users mr-1"></i> Current recipients: <strong>' + op.totalEmails + '</strong> email(s). ' +
                         'Upload a new file below to replace them.');
@@ -499,14 +558,26 @@
             var subject  = $.trim($('#email-subject').val());
             var body     = $('#email-body').summernote('code');
             var bodyText = $.trim($('<div>').html(body).text());
+            var aiMode = getAiMode();
+            var aiVariantCount = parseInt($('#ai-variant-count').val(), 10) || 0;
+            var aiPrompt = $.trim($('#ai-prompt').val());
+            var aiTone = $.trim($('#ai-tone').val());
             if (!subject)  { alertError('Subject is required.'); return; }
             if (!bodyText) { alertError('Body is required.'); return; }
+            if (aiMode === 1 && (aiVariantCount < 1 || aiVariantCount > 20)) {
+                alertError('AI Variant Count must be between 1 and 20 when AI is enabled.');
+                return;
+            }
 
             showLoading();
             var fd = new FormData();
             fd.append('Id', opId);
             fd.append('Subject', subject);
             fd.append('Body', body);
+            fd.append('AiGenerationMode', aiMode.toString());
+            fd.append('AiVariantCount', aiMode === 1 ? aiVariantCount.toString() : '0');
+            fd.append('AiPrompt', aiPrompt);
+            fd.append('AiTone', aiTone);
             if (selectedFile) {
                 fd.append('File', selectedFile);
                 fd.append('EmailColumnIndex', $('#email-column-index').val() || '0');
@@ -724,6 +795,8 @@
 
         loadData();
         loadSenders();
+        $('#ai-generation-mode').on('change', toggleAiPanel);
+        toggleAiPanel();
 
     }(jQuery));
     </script>

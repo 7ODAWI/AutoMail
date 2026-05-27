@@ -19,5 +19,6 @@ namespace AutoMail.BulkEmail.Dto
         public AiGenerationMode AiGenerationMode { get; set; }
         public int AiVariantCount { get; set; }
         public DateTime? AiLastGeneratedAt { get; set; }
+        public bool AiTemplatesGenerated { get; set; }
     }
 }

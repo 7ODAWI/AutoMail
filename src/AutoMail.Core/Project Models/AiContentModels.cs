@@ -13,7 +13,7 @@ namespace AutoMail.Project_Models
 
         public AiGenerationRunStatus Status { get; set; } = AiGenerationRunStatus.Pending;
 
-        [Range(1, 100)]
+        [Range(1, 10000000)]
         public int RequestedVariants { get; set; }
 
         public int GeneratedVariants { get; set; }
