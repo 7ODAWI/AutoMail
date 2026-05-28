@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,11 +30,24 @@ namespace AutoMail.BulkEmail.Ai
         private static bool IsClientRateLimited(int index)
             => _rateLimitedUntil.TryGetValue(index, out var until) && DateTime.UtcNow < until;
 
-        private static void MarkClientFailed(int index)
-            => _rateLimitedUntil[index] = DateTime.UtcNow.Add(RateLimitWindow);
+        private static void MarkClientFailed(int index, TimeSpan? delay = null)
+            => _rateLimitedUntil[index] = DateTime.UtcNow.Add(delay ?? RateLimitWindow);
 
         private static void ClearClientFailed(int index)
             => _rateLimitedUntil.TryRemove(index, out _);
+
+        // Parses "Please retry in 44.88s" from Gemini rate-limit error messages
+        private static TimeSpan? ParseRetryDelay(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message)) return null;
+            var m = Regex.Match(message, @"retry in ([\d.]+)s", RegexOptions.IgnoreCase);
+            if (m.Success && double.TryParse(m.Groups[1].Value,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var secs))
+                return TimeSpan.FromSeconds(secs + 2); // +2s safety buffer
+            return null;
+        }
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -166,17 +180,42 @@ namespace AutoMail.BulkEmail.Ai
                             continue;
 
                         var client = _genAiClients[clientIdx];
-                        result = await TryGenerateWithGeminiAsync(batchRequest, model, client, cancellationToken);
+                        result = await TryGenerateWithGeminiAsync(batchRequest, model, client, clientIdx, cancellationToken);
                         if (result?.Variants?.Count > 0)
                         {
                             ClearClientFailed(clientIdx); // working again — clear its flag
                             break;
                         }
 
-                        MarkClientFailed(clientIdx); // mark so other batches skip it
+                        // MarkClientFailed is called inside TryGenerateWithGeminiAsync with the exact delay
 
                         if (attempt < keyCount - 1)
                             await Task.Delay(100, cancellationToken);
+                    }
+
+                    // If all keys failed but have rate-limit cooldowns, wait for the soonest
+                    // one to recover and do ONE final retry before giving up on this batch.
+                    if (result?.Variants?.Count == 0 || result == null)
+                    {
+                        var now = DateTime.UtcNow;
+                        var soonestEntry = _rateLimitedUntil
+                            .Where(kv => kv.Key < _genAiClients.Count)
+                            .OrderBy(kv => kv.Value)
+                            .FirstOrDefault();
+
+                        if (soonestEntry.Value > now)
+                        {
+                            var waitMs = (int)(soonestEntry.Value - now).TotalMilliseconds;
+                            if (waitMs > 0 && waitMs <= 120_000)
+                            {
+                                await Task.Delay(waitMs, cancellationToken);
+                                ClearClientFailed(soonestEntry.Key);
+                                var retryClient = _genAiClients[soonestEntry.Key];
+                                result = await TryGenerateWithGeminiAsync(batchRequest, model, retryClient, soonestEntry.Key, cancellationToken);
+                                if (result?.Variants?.Count > 0)
+                                    ClearClientFailed(soonestEntry.Key);
+                            }
+                        }
                     }
 
                     return result;
@@ -248,6 +287,7 @@ namespace AutoMail.BulkEmail.Ai
             EngineGenerateRequest request,
             string model,
             Client client,
+            int clientIdx,
             CancellationToken cancellationToken)
         {
             if (!_options.Enabled || _genAiClients.Count == 0 || client == null)
@@ -301,8 +341,12 @@ namespace AutoMail.BulkEmail.Ai
             {
                 return null;
             }
-            catch
+            catch (Exception ex)
             {
+                // Parse exact retry delay from Gemini rate-limit errors so the outer loop
+                // can wait the precise time and retry rather than guessing.
+                var delay = ParseRetryDelay(ex.Message);
+                MarkClientFailed(clientIdx, delay);
                 return null;
             }
         }
