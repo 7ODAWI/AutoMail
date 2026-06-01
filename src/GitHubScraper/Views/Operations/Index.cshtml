@@ -6,9 +6,27 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4 class="mb-0"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Operations Dashboard</h4>
-    <a asp-action="Create" class="btn btn-primary">
-        <i class="bi bi-plus-circle me-1"></i>New Operation
-    </a>
+    <div class="btn-group">
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i>New Operation
+        </a>
+        <a asp-action="ExportAll" class="btn btn-outline-secondary">
+            <i class="bi bi-download me-1"></i>Export All Emails
+        </a>
+        <form asp-action="StartAll" method="post" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-play-fill me-1"></i>Run All
+            </button>
+        </form>
+    </div>
+    <form asp-action="CreateRandom" method="post" class="d-inline ms-2">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="count" value="5" />
+        <button type="submit" class="btn btn-outline-primary">
+            <i class="bi bi-shuffle me-1"></i>Create Random Ops (5)
+        </button>
+    </form>
 </div>
 
 @if (!Model.Operations.Any())

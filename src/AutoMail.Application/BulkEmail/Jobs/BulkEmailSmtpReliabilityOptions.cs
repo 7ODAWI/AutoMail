@@ -11,7 +11,7 @@ namespace AutoMail.BulkEmail.Jobs
         public int RetryJitterMs { get; set; } = 1500;
 
         public int ReconnectEveryEmails { get; set; } = 25;
-        public int SenderSwitchEveryEmails { get; set; } = 3;
+        public int SenderSwitchEveryEmails { get; set; } = 1;
         public int PauseCheckInterval { get; set; } = 10;
         public int PageSize { get; set; } = 200;
 

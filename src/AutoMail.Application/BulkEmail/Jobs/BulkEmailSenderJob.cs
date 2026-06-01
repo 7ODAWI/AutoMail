@@ -52,7 +52,14 @@ namespace AutoMail.BulkEmail.Jobs
         [UnitOfWork]
         public override async Task ExecuteAsync(BulkEmailJobArgs args)
         {
-            var operation = await _operationRepository.GetAsync(args.OperationId);
+            var operation = await _operationRepository.GetAll()
+                .FirstOrDefaultAsync(o => o.Id == args.OperationId);
+
+            if (operation == null)
+            {
+                Logger.Warn($"[BulkEmailSenderJob] Operation {args.OperationId} was deleted before job start. Skipping.");
+                return;
+            }
 
             if (operation.Status == OperationStatus.InProgress)
             {
@@ -150,9 +157,19 @@ namespace AutoMail.BulkEmail.Jobs
 
             Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId}: {activeSenders.Count} sender(s) ready. Subject: '{operation.Subject}'");
 
+            // Load templates from the shared global pool (OperationId == null).
+            // These are the AI-generated templates produced by the standalone template generator.
             var templates = await _templateRepository.GetAll()
-                .Where(t => t.OperationId == args.OperationId)
+                .Where(t => t.OperationId == null)
                 .ToListAsync();
+
+            // Fallback: if no shared templates exist yet, try operation-specific ones
+            if (templates.Count == 0)
+            {
+                templates = await _templateRepository.GetAll()
+                    .Where(t => t.OperationId == args.OperationId)
+                    .ToListAsync();
+            }
 
             var rng = new Random();
             var roundRobinIndex = 0;
@@ -189,8 +206,14 @@ namespace AutoMail.BulkEmail.Jobs
                             var freshStatus = await _operationRepository.GetAll()
                                 .AsNoTracking()
                                 .Where(o => o.Id == args.OperationId)
-                                .Select(o => o.Status)
-                                .FirstAsync();
+                                .Select(o => (OperationStatus?)o.Status)
+                                .FirstOrDefaultAsync();
+
+                            if (!freshStatus.HasValue)
+                            {
+                                Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId} was deleted during execution. Stopping job.");
+                                return;
+                            }
 
                             if (freshStatus == OperationStatus.Paused)
                             {
@@ -293,6 +316,12 @@ namespace AutoMail.BulkEmail.Jobs
                             Logger.Warn($"[BulkEmailSenderJob] Failed {email.Email} via {email.SenderId}: {sendResult.ErrorMessage}. RetryCount={email.RetryCount}");
                         }
 
+                        if (!await OperationExistsAsync(args.OperationId))
+                        {
+                            Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId} was deleted before persisting send result. Stopping job.");
+                            return;
+                        }
+
                         await _operationEmailRepository.UpdateAsync(email);
 
                         operation.SentCount = totalSent;
@@ -369,6 +398,12 @@ namespace AutoMail.BulkEmail.Jobs
             var pendingFinalCount = await _operationEmailRepository.GetAll()
                 .CountAsync(e => e.OperationId == args.OperationId && e.Status == SendStatus.Pending);
 
+            if (!await OperationExistsAsync(args.OperationId))
+            {
+                Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId} was deleted before final status update. Skipping finalization.");
+                return;
+            }
+
             operation.SentCount = sentCount;
             operation.FailedCount = failedCount;
 
@@ -380,8 +415,14 @@ namespace AutoMail.BulkEmail.Jobs
             var currentStatus = await _operationRepository.GetAll()
                 .AsNoTracking()
                 .Where(o => o.Id == args.OperationId)
-                .Select(o => o.Status)
-                .FirstAsync();
+                .Select(o => (OperationStatus?)o.Status)
+                .FirstOrDefaultAsync();
+
+            if (!currentStatus.HasValue)
+            {
+                Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId} was deleted before final status read. Skipping finalization.");
+                return;
+            }
 
             if (currentStatus != OperationStatus.Paused && currentStatus != OperationStatus.Cancelled)
             {
@@ -411,6 +452,13 @@ namespace AutoMail.BulkEmail.Jobs
             await _notifier.NotifyStatusChangedAsync(BuildStatusEvent(operation));
 
             Logger.Info($"[BulkEmailSenderJob] Operation {args.OperationId} finished. Status: {operation.Status}. Sent: {sentCount}, Failed: {failedCount}, StillPending: {pendingFinalCount}.");
+        }
+
+        private async Task<bool> OperationExistsAsync(long operationId)
+        {
+            return await _operationRepository.GetAll()
+                .AsNoTracking()
+                .AnyAsync(o => o.Id == operationId);
         }
 
         private async Task<SendResult> SendWithRetryAndRecoveryAsync(

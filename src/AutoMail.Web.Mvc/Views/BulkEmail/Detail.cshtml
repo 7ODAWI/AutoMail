@@ -88,7 +88,7 @@
             </div>
             <div class="row mb-3">
                 <div class="col-12">
-                    <strong>Body:</strong>
+                    <strong>Body (read-only preview):</strong>
                     <div class="body-preview mt-1" id="op-body">—</div>
                 </div>
             </div>
@@ -146,6 +146,54 @@
     </div>
 
     <!-- Email Templates card -->
+    <div class="card card-outline card-warning" id="ai-generation-card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-robot mr-1"></i> AI Generation Process</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-sm btn-outline-danger" id="btn-stop-ai-generation" style="display:none">
+                    <i class="fas fa-stop mr-1"></i> Stop AI Generation
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-3"><small class="text-muted">Mode:</small> <strong id="ai-mode">—</strong></div>
+                <div class="col-md-3"><small class="text-muted">Variant Target:</small> <strong id="ai-variant-target">—</strong></div>
+                <div class="col-md-3"><small class="text-muted">AI Templates:</small> <strong id="ai-generated-count">—</strong></div>
+                <div class="col-md-3"><small class="text-muted">Manual Templates:</small> <strong id="ai-manual-count">—</strong></div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-4"><small class="text-muted">Last Generated:</small> <strong id="ai-last-generated">—</strong></div>
+                <div class="col-md-4"><small class="text-muted">Templates Ready:</small> <strong id="ai-generated-flag">—</strong></div>
+                <div class="col-md-4"><small class="text-muted">Latest Run Status:</small> <span id="ai-latest-status">—</span></div>
+            </div>
+            <div class="mb-3">
+                <small class="text-muted">Prompt Preview:</small>
+                <div class="body-preview mt-1" id="ai-prompt-preview">—</div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" id="ai-runs-table">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Run #</th>
+                            <th>Status</th>
+                            <th>Requested</th>
+                            <th>Generated</th>
+                            <th>Route</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ai-runs-tbody">
+                        <tr><td colspan="8" class="text-center text-muted py-3">No AI generation runs yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Templates card -->
     <div class="card card-outline card-info">
         <div class="card-header">
             <h3 class="card-title"><i class="fas fa-copy mr-1"></i> Email Templates
@@ -175,6 +223,13 @@
                 </thead>
                 <tbody id="templates-tbody"></tbody>
             </table>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" id="templates-pager" style="display:none">
+                <small class="text-muted" id="templates-page-info">Page 1</small>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-templates-prev">Prev</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-templates-next">Next</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -259,6 +314,13 @@
                     <tr><td colspan="6" class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div></td></tr>
                 </tbody>
             </table>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top" id="emails-pager" style="display:none">
+                <small class="text-muted" id="emails-page-info">Page 1</small>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-emails-prev">Prev</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-emails-next">Next</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -278,6 +340,13 @@
         var hubConnection = null;
         var currentStatus = '';
         var totalEmails = 0;
+        var templatePage = 1;
+        var templatePageSize = 20;
+        var templateTotalCount = 0;
+        var emailsPage = 1;
+        var emailsPageSize = 50;
+        var emailsTotalCount = 0;
+        var emailsLoaded = false;
 
         // ── Helpers ──────────────────────────────────────────────────────── //
 
@@ -305,6 +374,28 @@
             };
             var entry = map[(status || '').toLowerCase()] || ['badge-pending', status];
             return '<span class="badge ' + entry[0] + ' px-2 py-1">' + escapeHtml(entry[1]) + '</span>';
+        }
+
+        function aiRunStatusBadge(status) {
+            var st = (status || '').toLowerCase();
+            if (st === 'completed') return '<span class="badge badge-success px-2 py-1">Completed</span>';
+            if (st === 'running') return '<span class="badge badge-primary px-2 py-1">Running</span>';
+            if (st === 'failed') return '<span class="badge badge-danger px-2 py-1">Failed</span>';
+            if (st === 'cancelled') return '<span class="badge badge-dark px-2 py-1">Cancelled</span>';
+            if (st === 'pending') return '<span class="badge badge-secondary px-2 py-1">Pending</span>';
+            return '<span class="badge badge-light px-2 py-1">' + escapeHtml(status || 'Unknown') + '</span>';
+        }
+
+        function aiModeText(mode) {
+            if (typeof mode === 'string') {
+                var normalized = mode.toLowerCase();
+                if (normalized === 'pregeneratedpool') return 'PreGeneratedPool';
+                if (normalized === 'disabled') return 'Disabled';
+            }
+
+            var val = parseInt(mode, 10);
+            if (val === 1) return 'PreGeneratedPool';
+            return 'Disabled';
         }
 
         function toast(icon, title, text) {
@@ -375,6 +466,9 @@
             if (st === 'failed') {
                 html += '<button class="btn btn-sm btn-outline-success mr-1" id="btn-complete-send"><i class="fas fa-check-double mr-1"></i>Complete Send</button>';
             }
+            if (st !== 'inprogress') {
+                html += '<button class="btn btn-sm btn-outline-danger mr-1" id="btn-delete-op"><i class="fas fa-trash mr-1"></i>Delete</button>';
+            }
 
             $('#op-controls').html(html);
             bindControlButtons();
@@ -420,16 +514,35 @@
                     confirmButtonText: '<i class="fas fa-check-double"></i> Complete Send'
                 }).then(function (r) { if (r.isConfirmed) controlOp('@Url.Action("CompleteSend", "BulkEmail")', 'Queued'); });
             });
+
+            $('#btn-delete-op').off('click').on('click', function () {
+                Swal.fire({
+                    title: 'Delete Operation?',
+                    html: 'This will permanently delete operation <strong>#' + opId + '</strong> and all related emails, templates, and AI data.',
+                    icon: 'warning', showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: '<i class="fas fa-trash"></i> Delete'
+                }).then(function (r) {
+                    if (!r.isConfirmed) return;
+                    controlOp('@Url.Action("DeleteOperation", "BulkEmail")', 'Deleted', function () {
+                        window.location.href = '@Url.Action("Index", "BulkEmail")';
+                    });
+                });
+            });
         }
 
-        function controlOp(url, label) {
+        function controlOp(url, label, onSuccess) {
             $.ajax({
                 url: url, type: 'POST', contentType: 'application/json',
                 data: JSON.stringify({ id: opId }),
                 headers: { 'RequestVerificationToken': getToken() },
                 success: function () {
                     toast('success', label, '');
-                    setTimeout(loadDetail, 400);
+                    if (onSuccess) {
+                        setTimeout(onSuccess, 300);
+                        return;
+                    }
+                    setTimeout(reloadDetailSections, 400);
                 },
                 error: function (xhr) {
                     var msg = 'An error occurred.';
@@ -439,19 +552,58 @@
             });
         }
 
-        // ── Load full detail from server ─────────────────────────────────── //
+        // ── Load detail sections from server ────────────────────────────── //
 
-        function loadDetail() {
+        function loadOverview() {
             $.ajax({
-                url: '@Url.Action("Detail", "BulkEmail")',
+                url: '@Url.Action("DetailOverview", "BulkEmail")',
                 data: { id: opId },
                 type: 'GET',
                 success: function (resp) {
                     var op = resp.result || resp;
                     applyOpData(op);
-                    renderEmailsTable(op.emails || []);
                 }
             });
+        }
+
+        function loadTemplatesPage(page) {
+            templatePage = page || 1;
+            $.ajax({
+                url: '@Url.Action("DetailTemplates", "BulkEmail")',
+                data: { id: opId, pageNumber: templatePage, pageSize: templatePageSize },
+                type: 'GET',
+                success: function (resp) {
+                    var result = resp.result || resp;
+                    templateTotalCount = result.totalCount || 0;
+                    templateCache = result.items || [];
+                    renderTemplatesTable(templateCache);
+                    renderTemplatesPager();
+                }
+            });
+        }
+
+        function loadEmailsPage(page) {
+            emailsPage = page || 1;
+            $.ajax({
+                url: '@Url.Action("DetailEmails", "BulkEmail")',
+                data: { id: opId, pageNumber: emailsPage, pageSize: emailsPageSize },
+                type: 'GET',
+                success: function (resp) {
+                    var result = resp.result || resp;
+                    emailsTotalCount = result.totalCount || 0;
+                    renderEmailsTable(result.items || []);
+                    renderEmailsPager();
+                    emailsLoaded = true;
+                }
+            });
+        }
+
+        function reloadDetailSections() {
+            loadOverview();
+            loadTemplatesPage(templatePage);
+            if (emailsLoaded) {
+                loadEmailsPage(emailsPage);
+            }
         }
 
         function applyOpData(op) {
@@ -472,8 +624,7 @@
 
             updateProgress(op.sentCount, op.totalEmails, op.statusText);
             renderControls(op.statusText);
-            templateCache = op.templates || [];
-            renderTemplatesTable(templateCache);
+            renderAiGeneration(op);
 
             // Stop reason banner
             if (op.stopReason) {
@@ -500,6 +651,50 @@
             var st = (op.statusText || '').toLowerCase();
             if (st === 'inprogress' || st === 'pending') startAutoRefresh();
             else stopAutoRefresh();
+        }
+
+        function renderAiGeneration(op) {
+            $('#ai-mode').text(aiModeText(op.aiGenerationMode));
+            $('#ai-variant-target').text(op.aiVariantCount || 0);
+            $('#ai-generated-count').text(op.aiGeneratedTemplateCount || 0);
+            $('#ai-manual-count').text(op.aiManualTemplateCount || 0);
+            $('#ai-last-generated').text(formatDate(op.aiLastGeneratedAt));
+            $('#ai-generated-flag').text(op.aiTemplatesGenerated ? 'Yes' : 'No');
+            $('#ai-prompt-preview').text(op.aiPrompt || '—');
+
+            var latest = op.latestAiGenerationRun;
+            if (latest) {
+                $('#ai-latest-status').html(aiRunStatusBadge(latest.status));
+                if ((latest.status || '').toLowerCase() === 'running') {
+                    $('#btn-stop-ai-generation').show();
+                } else {
+                    $('#btn-stop-ai-generation').hide();
+                }
+            } else {
+                $('#ai-latest-status').text('—');
+                $('#btn-stop-ai-generation').hide();
+            }
+
+            var runs = op.aiGenerationRuns || [];
+            var $tbody = $('#ai-runs-tbody');
+            $tbody.empty();
+            if (!runs.length) {
+                $tbody.append('<tr><td colspan="8" class="text-center text-muted py-3">No AI generation runs yet.</td></tr>');
+                return;
+            }
+
+            runs.forEach(function (r) {
+                $tbody.append('<tr>' +
+                    '<td>' + r.id + '</td>' +
+                    '<td>' + aiRunStatusBadge(r.status) + '</td>' +
+                    '<td>' + (r.requestedVariants || 0) + '</td>' +
+                    '<td>' + (r.generatedVariants || 0) + '</td>' +
+                    '<td>' + escapeHtml(r.modelRoute || '\u2014') + '</td>' +
+                    '<td>' + formatDate(r.startedAt) + '</td>' +
+                    '<td>' + formatDate(r.completedAt) + '</td>' +
+                    '<td title="' + escapeHtml(r.errorMessage || '') + '">' + escapeHtml(r.errorMessage || '\u2014') + '</td>' +
+                    '</tr>');
+            });
         }
 
         // ── Emails table ─────────────────────────────────────────────────── //
@@ -580,7 +775,7 @@
                     stopAutoRefresh();
                     toast('info', 'Operation ' + n.status, 'Sent: ' + n.sentCount + ' | Failed: ' + n.failedCount);
                     // Reload to get final accurate data
-                    setTimeout(loadDetail, 800);
+                    setTimeout(reloadDetailSections, 800);
                 }
                 if (st === 'paused') {
                     stopAutoRefresh();
@@ -598,7 +793,7 @@
         }
 
         function startAutoRefresh() {
-            if (!refreshTimer) refreshTimer = setInterval(loadDetail, 5000);
+            if (!refreshTimer) refreshTimer = setInterval(loadOverview, 5000);
         }
 
         function stopAutoRefresh() {
@@ -625,7 +820,7 @@
                     success: function (resp) {
                         var msg = (resp.result && resp.result.message) ? resp.result.message : resp.message || 'Retry job queued.';
                         toast('success', 'Retry Queued', msg);
-                        loadDetail();
+                            reloadDetailSections();
                     },
                     error: function (xhr) {
                         var msg = 'An unexpected error occurred.';
@@ -647,16 +842,18 @@
                 $('#templates-table').hide();
                 $('#no-templates-msg').show();
                 $('#tpl-header-hint').text('');
+                $('#templates-pager').hide();
                 return;
             }
             $('#no-templates-msg').hide();
             $('#templates-table').show();
             var totalWeight = templates.reduce(function (s, t) { return s + t.weight; }, 0);
             templates.forEach(function (t, i) {
+                var rowNo = ((templatePage - 1) * templatePageSize) + i + 1;
                 var chance = totalWeight > 0 ? Math.round((t.weight / totalWeight) * 100) : 0;
                 var preview = (t.subject || '').length > 55 ? t.subject.substring(0, 52) + '...' : t.subject;
                 $tbody.append('<tr>' +
-                    '<td>' + (i + 1) + '</td>' +
+                    '<td>' + rowNo + '</td>' +
                     '<td>' + escapeHtml(t.name || '\u2014') + '</td>' +
                     '<td title="' + escapeHtml(t.subject) + '">' + escapeHtml(preview) + '</td>' +
                     '<td>' + t.weight + '</td>' +
@@ -668,6 +865,32 @@
                     '</tr>');
             });
             $('#tpl-header-hint').text('(' + templates.length + ' template' + (templates.length > 1 ? 's' : '') + ')');
+        }
+
+        function renderTemplatesPager() {
+            var totalPages = Math.max(1, Math.ceil(templateTotalCount / templatePageSize));
+            if (templateTotalCount <= templatePageSize) {
+                $('#templates-pager').hide();
+                return;
+            }
+
+            $('#templates-pager').show();
+            $('#templates-page-info').text('Page ' + templatePage + ' of ' + totalPages + ' (' + templateTotalCount + ' total)');
+            $('#btn-templates-prev').prop('disabled', templatePage <= 1);
+            $('#btn-templates-next').prop('disabled', templatePage >= totalPages);
+        }
+
+        function renderEmailsPager() {
+            var totalPages = Math.max(1, Math.ceil(emailsTotalCount / emailsPageSize));
+            if (emailsTotalCount <= emailsPageSize) {
+                $('#emails-pager').hide();
+                return;
+            }
+
+            $('#emails-pager').show();
+            $('#emails-page-info').text('Page ' + emailsPage + ' of ' + totalPages + ' (' + emailsTotalCount + ' total)');
+            $('#btn-emails-prev').prop('disabled', emailsPage <= 1);
+            $('#btn-emails-next').prop('disabled', emailsPage >= totalPages);
         }
 
         function openAddTpl() {
@@ -710,7 +933,8 @@
                 success: function () {
                     $('#template-modal').modal('hide');
                     toast('success', id > 0 ? 'Template updated' : 'Template added', '');
-                    loadDetail();
+                        loadOverview();
+                        loadTemplatesPage(1);
                 },
                 error: function (xhr) {
                     var msg = 'An error occurred.';
@@ -736,7 +960,7 @@
                     url: '@Url.Action("DeleteTemplate", "BulkEmail")', type: 'POST',
                     contentType: 'application/json', data: JSON.stringify({ id: id }),
                     headers: { 'RequestVerificationToken': getToken() },
-                    success: function () { toast('success', 'Deleted', 'Template removed.'); loadDetail(); },
+                    success: function () { toast('success', 'Deleted', 'Template removed.'); loadOverview(); loadTemplatesPage(1); },
                     error: function (xhr) {
                         var msg = 'An error occurred.';
                         try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
@@ -748,11 +972,57 @@
 
         $('#btn-add-template').on('click', openAddTpl);
         $('#btn-save-tpl').on('click', saveTpl);
+        $('#btn-templates-prev').on('click', function () { if (templatePage > 1) loadTemplatesPage(templatePage - 1); });
+        $('#btn-templates-next').on('click', function () {
+            var totalPages = Math.max(1, Math.ceil(templateTotalCount / templatePageSize));
+            if (templatePage < totalPages) loadTemplatesPage(templatePage + 1);
+        });
+        $('#btn-emails-prev').on('click', function () { if (emailsPage > 1) loadEmailsPage(emailsPage - 1); });
+        $('#btn-emails-next').on('click', function () {
+            var totalPages = Math.max(1, Math.ceil(emailsTotalCount / emailsPageSize));
+            if (emailsPage < totalPages) loadEmailsPage(emailsPage + 1);
+        });
+        $('#btn-toggle-emails').on('click', function () {
+            setTimeout(function () {
+                var isOpen = $('#btn-toggle-emails i').hasClass('fa-minus');
+                if (isOpen && !emailsLoaded) {
+                    loadEmailsPage(1);
+                }
+            }, 100);
+        });
+
+        $('#btn-stop-ai-generation').on('click', function () {
+            Swal.fire({
+                title: 'Stop AI Generation?',
+                text: 'Current generation will be cancelled and AI mode will be disabled so you can start sending now.',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: '<i class="fas fa-stop"></i> Stop Generation'
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
+                $.ajax({
+                    url: '@Url.Action("StopAiGeneration", "BulkEmail")',
+                    type: 'POST', contentType: 'application/json',
+                    data: JSON.stringify({ id: opId }),
+                    headers: { 'RequestVerificationToken': getToken() },
+                    success: function () {
+                        toast('success', 'AI generation stopped', 'You can start sending operation now.');
+                        reloadDetailSections();
+                    },
+                    error: function (xhr) {
+                        var msg = 'An unexpected error occurred.';
+                        try { var err = JSON.parse(xhr.responseText); msg = (err.error && err.error.message) ? err.error.message : msg; } catch(_) {}
+                        alertError(msg);
+                    }
+                });
+            });
+        });
 
         // ── Init ─────────────────────────────────────────────────────────── //
 
         initSignalR();
-        loadDetail();
+        loadOverview();
+        loadTemplatesPage(1);
 
     }(jQuery));
     </script>

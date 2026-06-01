@@ -9,6 +9,8 @@ namespace AutoMail.Project_Models
     public class EmailOperation : CreationAuditedEntity<long>
     {
         public const int MaxSubjectLength = 500;
+        public const int MaxAiPromptLength = 4000;
+        public const int MaxAiToneLength = 128;
 
         [Required]
         [MaxLength(MaxSubjectLength)]
@@ -32,6 +34,21 @@ namespace AutoMail.Project_Models
         /// <summary>Human-readable reason why the operation stopped early (null = normal completion).</summary>
         [MaxLength(1000)]
         public string StopReason { get; set; }
+
+        public AiGenerationMode AiGenerationMode { get; set; } = AiGenerationMode.Disabled;
+
+        [MaxLength(MaxAiPromptLength)]
+        public string AiPrompt { get; set; }
+
+        [Range(0, 10000000)]
+        public int AiVariantCount { get; set; }
+
+        [MaxLength(MaxAiToneLength)]
+        public string AiTone { get; set; }
+
+        public DateTime? AiLastGeneratedAt { get; set; }
+
+        public bool AiTemplatesGenerated { get; set; }
     }
 
     [Table("EmailTemplates")]
@@ -40,7 +57,8 @@ namespace AutoMail.Project_Models
         [MaxLength(200)]
         public string Name { get; set; }
 
-        public long OperationId { get; set; }
+        // Null = shared global template pool (not tied to any operation)
+        public long? OperationId { get; set; }
 
         [Required]
         [MaxLength(500)]
@@ -51,5 +69,16 @@ namespace AutoMail.Project_Models
 
         [Range(1, 100)]
         public int Weight { get; set; } = 1;
+
+        public bool IsAiGenerated { get; set; }
+
+        [MaxLength(500)]
+        public string PreviewText { get; set; }
+
+        public long? AiGenerationRunId { get; set; }
+
+        public long? AiGeneratedVersionId { get; set; }
+
+        public double? SimilarityScore { get; set; }
     }
 }

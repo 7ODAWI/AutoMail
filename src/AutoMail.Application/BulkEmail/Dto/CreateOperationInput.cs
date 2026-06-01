@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using AutoMail.Project_Models;
 using System.ComponentModel.DataAnnotations;
 
 namespace AutoMail.BulkEmail.Dto
@@ -16,6 +17,17 @@ namespace AutoMail.BulkEmail.Dto
 
         [Required]
         public string Body { get; set; }
+
+        public AiGenerationMode AiGenerationMode { get; set; } = AiGenerationMode.PreGeneratedPool;
+
+        [Range(0, 10000000)]
+        public int AiVariantCount { get; set; }
+
+        [MaxLength(4000)]
+        public string AiPrompt { get; set; }
+
+        [MaxLength(128)]
+        public string AiTone { get; set; }
 
         /// <summary>When false, the operation is saved as a draft without starting the background job.</summary>
         public bool StartImmediately { get; set; } = true;

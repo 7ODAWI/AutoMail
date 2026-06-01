@@ -1,0 +1,917 @@
+@{
+    ViewBag.Title = "AI Template Pool";
+    Layout = "~/Views/Shared/Layout/_LayoutEmail.cshtml";
+}
+
+@section styles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.min.css" />
+    <style>
+        /* ── Status badges ── */
+        .badge-running   { background: #007bff; color: #fff; }
+        .badge-completed { background: #28a745; color: #fff; }
+        .badge-failed    { background: #dc3545; color: #fff; }
+        .badge-cancelled { background: #6c757d; color: #fff; }
+        .badge-pending   { background: #ffc107; color: #212529; }
+
+        /* ── Stats bar ── */
+        .stat-card        { border-radius: 8px; padding: 18px 22px; }
+        .stat-card .num   { font-size: 2rem; font-weight: 700; line-height: 1; }
+        .stat-card .lbl   { font-size: .82rem; color: #888; margin-top: 2px; }
+
+        /* ── Prompt textarea ── */
+        #prompt-area { font-size: .85rem; resize: vertical; min-height: 120px; }
+
+        /* ── Template table ── */
+        .tpl-subject { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tpl-preview { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #666; font-size: .85rem; }
+
+        /* ── Body preview modal ── */
+        #body-modal-content { max-height: 70vh; overflow-y: auto; }
+
+        /* ── Generating spinner bar ── */
+        #gen-progress-bar { height: 6px; border-radius: 3px; }
+
+        /* ── Page overlay ── */
+        #page-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.35); z-index: 9999;
+            align-items: center; justify-content: center;
+        }
+        #page-overlay.show { display: flex; }
+        .spinner-border-lg { width: 3.5rem; height: 3.5rem; border-width: .4em; }
+
+        /* ── Run row flash ── */
+        @@keyframes row-flash { from { background: #d4edda; } to { background: transparent; } }
+        tr.row-new { animation: row-flash 2s ease-out; }
+    </style>
+}
+
+<div id="page-overlay">
+    <div class="spinner-border text-light spinner-border-lg" role="status"></div>
+</div>
+
+<div class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1 class="m-0 text-dark">
+                    <i class="fas fa-robot text-primary"></i> AI Template Pool
+                </h1>
+                <p class="text-muted mb-0" style="font-size:.9rem">
+                    Standalone AI template generator — all send operations pick randomly from this shared pool.
+                </p>
+            </div>
+            <div class="col-sm-6 text-right">
+                <a href="@Url.Action("Index", "BulkEmail")" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Operations
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="__AntiForgeryForm" style="display:none">@Html.AntiForgeryToken()</form>
+
+<section class="content">
+<div class="container-fluid">
+
+    <!-- ═══════════ Stats Bar ═══════════ -->
+    <div class="row mb-3" id="stats-row">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card stat-card bg-primary text-white shadow-sm h-100">
+                <div class="num" id="stat-total">—</div>
+                <div class="lbl text-white-50">Total Templates in Pool</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card stat-card bg-success text-white shadow-sm h-100">
+                <div class="num" id="stat-running">—</div>
+                <div class="lbl text-white-50">Running Generations</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card stat-card bg-info text-white shadow-sm h-100">
+                <div class="num" id="stat-total-runs">—</div>
+                <div class="lbl text-white-50">Total Generation Runs</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card stat-card bg-warning shadow-sm h-100">
+                <div class="num" id="stat-last-gen">—</div>
+                <div class="lbl">Last Generated</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+
+        <!-- ═══════════ LEFT COLUMN — Generate + Runs ═══════════ -->
+        <div class="col-xl-5 col-lg-5 col-12">
+
+            <!-- Generate Card -->
+            <div class="card card-primary card-outline">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-magic mr-1"></i> Generate New Templates</h3>
+                </div>
+                <div class="card-body">
+
+                    <div class="form-group">
+                        <label>Variant Count <span class="text-muted small">(how many templates to generate)</span></label>
+                        <input type="number" id="variant-count" class="form-control" value="10" min="1" max="200" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tone <span class="text-muted small">(optional override)</span></label>
+                        <input type="text" id="tone-input" class="form-control" placeholder="e.g. calm, professional, personal" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Prompt</label>
+                        <textarea id="prompt-area" class="form-control" rows="6">ELITE HUMAN OUTREACH EMAIL GENERATION SYSTEM v4Short Human Donation Outreach Emails From Gaza 🇵🇸
+
+You are an elite human-style outreach strategist, emotional storytelling copywriter, psychological trust-builder, persuasive communication expert, HTML email designer, and inbox deliverability specialist.
+
+Your task is to generate deeply human outreach emails that feel personally written by real freelancers from Gaza rebuilding their lives after losing their home, workspace, stability, and income during the war.
+
+The emails must feel impossible to confuse with:
+
+AI-generated writingmass email campaignsautomated outreachfundraising spamNGO newsletterscorporate donation requestsmarketing funnels
+
+Every generated email must feel:
+
+humanshortpersonalemotionally believablenaturally imperfectconversationalcalmtrustworthywritten manuallyunique every time
+
+The writing should feel like a real person sending a quick personal message.
+
+━━━━━━━━━━━━━━━━━━PRIMARY GOAL━━━━━━━━━━━━━━━━━━
+
+Generate short outreach emails encouraging people to:
+
+donateshare the storyrepost the campaignhelp increase visibilitysupport rebuilding effortssupport livelihood recoveryhelp rebuild remote work capability
+
+The emails should naturally encourage donations while still feeling human and personal.
+
+━━━━━━━━━━━━━━━━━━CURRENT GAZA CONTEXT━━━━━━━━━━━━━━━━━━
+
+Every email MUST naturally reflect the current humanitarian situation in Gaza.
+
+The emails should briefly reference struggles related to:
+
+unsafe shelterfood insecuritydaily survival difficultieshealth and well-beingloss of work and incomeinternet and electricity instabilitylack of stability and safety
+
+The tone must remain:
+
+calmhumanemotionally realnon-politicalnon-aggressive
+
+Avoid dramatic exaggeration or manipulative wording.
+
+━━━━━━━━━━━━━━━━━━CAMPAIGN STORY━━━━━━━━━━━━━━━━━━
+
+We are Mahmoud, Mohammad, and Kamal from Gaza 🇵🇸
+
+Before the war we worked remotely in:
+
+programmingweb developmentWordPressWooCommerceASP .NETHTML/CSS/JavaScriptfreelancing
+
+Before the war we had:
+
+stable internetremote freelance workour own workspaceonline incomeindependent work
+
+The war destroyed:
+
+our homeworkspaceequipmentfinancial stabilitywork environment
+
+Now we are trying to rebuild:
+
+safe shelterfood and daily needshealth and well-beinginternet accesssolar-powered workspacelaptops and work equipmentremote work capabilityfinancial independencedaily stability
+
+The solar-powered workspace should be naturally described as part of rebuilding sustainable work and long-term livelihood opportunities.
+
+━━━━━━━━━━━━━━━━━━DONATION DIRECTION━━━━━━━━━━━━━━━━━━
+
+The word “donate” should naturally appear in many emails.
+
+Donation requests must feel:
+
+softhumancalmpersonalemotionally believable
+
+Never sound aggressive or desperate.
+
+Examples of style only:
+
+“If you’d like to donate or share our story, it would truly help.”“Even a small donation or repost means a lot to us.”“Support from people online is helping us rebuild step by step.”“If you can donate or help share this, thank you.”“Every donation is helping us rebuild shelter and a small solar-powered workspace.”
+
+━━━━━━━━━━━━━━━━━━MANDATORY CAMPAIGN LINKS━━━━━━━━━━━━━━━━━━
+
+Every email MUST naturally include one of exact these links dont change any char in these links:
+
+https://gofund.me/d17856cc4
+
+OR
+
+https://www.gofundme.com/f/gaza-war-recovery-temporary-shelter-and-livelihood
+
+The placement should vary naturally between emails.
+
+Possible placements:
+
+inside paragraphfooter placementsoft CTAminimal closing reference“our campaign page”“our story here”
+
+━━━━━━━━━━━━━━━━━━MANDATORY TRUST SECTION━━━━━━━━━━━━━━━━━━
+
+Every email MUST include a calm trust-building contact section.
+
+Use:
+
+Mahmoud (WhatsApp):+972598228186
+
+Kamal (WhatsApp):+972567908999
+
+The wording should vary naturally.
+
+Examples of style only:
+
+“You’re welcome to message us directly anytime.”“Happy to speak personally on WhatsApp.”“If you’d like to verify we’re real people, feel free to contact us.”
+
+━━━━━━━━━━━━━━━━━━SUBJECT LINE ENGINE━━━━━━━━━━━━━━━━━━
+
+Every email MUST include a short unique subject line with natural emoji usage.
+
+The subject line should reflect:
+
+life in Gazarebuildingdaily strugglehoperemote work rebuildinghuman connection
+
+Examples of style only:
+
+“Trying to rebuild from Gaza 🇵🇸”“A small message from Gaza 🌙”“Still rebuilding step by step 💻”“Trying to work online again ☀️”“Rebuilding shelter and work 🇵🇸”
+
+Avoid:
+
+clickbaitmarketing tonefake urgencyspam wording
+
+━━━━━━━━━━━━━━━━━━SHORT EMAIL RULE━━━━━━━━━━━━━━━━━━
+
+ALL emails must be very short.
+
+Target length:50–120 words maximum.
+
+The emails should feel readable in under 30 seconds.
+
+Preferred structure:
+
+short greeting1 short explanation of current situation1 short sentence about rebuilding shelter/workspace/livelihood1 soft CTA asking to donate/share/supportshort human closing
+
+Avoid:
+
+long storytellinglarge paragraphsover-explainingformal writingcorporate languagerepetitive emotional writing
+
+━━━━━━━━━━━━━━━━━━ANTI-AI HUMANIZATION━━━━━━━━━━━━━━━━━━
+
+Every email MUST feel independently written.
+
+Never repeat:
+
+greetingssentence structureCTA wordingparagraph rhythmsign-offsemoji placementstory order
+
+Possible tones:
+
+hopefulquietly tiredgratefulcalmwork-focusedreflectivesimple and personal
+
+Sometimes include small human details naturally.
+
+Examples:
+
+“The internet stayed stable long enough tonight to send this.”“I rewrote this message a few times honestly.”“Opening my laptop again felt strange.”
+
+Do not overuse these details.
+
+━━━━━━━━━━━━━━━━━━ANTI-SPAM RULES━━━━━━━━━━━━━━━━━━
+
+Avoid spam behavior completely.
+
+NEVER overuse:
+
+urgentemergencyact nowdonate immediatelyclick heresupport urgently
+
+Avoid:
+
+ALL CAPSaggressive fundraisingcorporate NGO tonemarketing languageexcessive punctuationemoji spam
+
+The emails should feel:
+
+simplemanually writtenpersonaltrustworthyemotionally real
+
+━━━━━━━━━━━━━━━━━━EMOJI RULES━━━━━━━━━━━━━━━━━━
+
+Every email should contain subtle natural emoji usage.
+
+Recommended:2–6 emojis maximum.
+
+Possible emojis:
+
+🇵🇸 🍉 🌍 🕊️💻 ⚡ ☀️ 📡🤝 💙 🙏 ☕🌙 ❤️ 🌱 ✨
+
+Never overuse emojis.
+
+━━━━━━━━━━━━━━━━━━AUDIENCE ADAPTATION━━━━━━━━━━━━━━━━━━
+
+Adapt tone naturally depending on audience.
+
+Possible audiences:
+
+developersfreelancersjournalistsinfluencersYouTubersNGOsbusiness ownershumanitarian activiststech communities
+
+Examples:
+
+Developers:remote work rebuildingworkspace setupinternet access
+
+Influencers:visibilitysharingaudience amplification
+
+Business owners:livelihood rebuildingindependenceremote opportunities
+
+━━━━━━━━━━━━━━━━━━HTML EMAIL RULES━━━━━━━━━━━━━━━━━━
+
+Every output MUST include:
+
+Plain text versionResponsive HTML version
+
+The HTML should:
+
+feel handcraftedavoid newsletter styleuse inline CSSbe mobile friendlyfeel calm and personal
+
+Use:
+
+soft spacingrounded cornersclean typographyminimal design
+
+━━━━━━━━━━━━━━━━━━IMAGE RULES━━━━━━━━━━━━━━━━━━
+
+Suggested images should feel:
+
+authenticquietdocumentary-likehuman
+
+Possible images:
+
+workspace photossolar setupdaily life momentstemporary shelter scenesinternet/work setup
+
+Avoid dramatic descriptions.
+
+━━━━━━━━━━━━━━━━━━OUTPUT FORMAT━━━━━━━━━━━━━━━━━━
+
+For every generated template include:
+
+Audience TypeSubject LineEmotional TonePlain Text VersionResponsive HTML VersionSuggested Image UsageCTA Style UsedPsychological Tone Used
+
+━━━━━━━━━━━━━━━━━━FINAL GOAL━━━━━━━━━━━━━━━━━━
+
+The final emails must feel like genuine short personal messages from freelancers in Gaza rebuilding:
+
+safe shelterfood and daily stabilityhealth and well-beingremote work capabilityinternet accesssolar-powered workspacelivelihood opportunitiesfinancial independencedignitytheir future
+
+The emails must feel calm, believable, emotionally human, donation-friendly, concise, and impossible to mistake for generic fundraising spam.
+</textarea>
+                    </div>
+
+                    <!-- Generation progress bar (shown while running) -->
+                    <div id="gen-progress-wrap" style="display:none" class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="text-muted" id="gen-status-text">Generating…</small>
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btn-stop-global">
+                                <i class="fas fa-stop mr-1"></i> Stop
+                            </button>
+                        </div>
+                        <div class="progress">
+                            <div id="gen-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" style="width:100%"></div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-primary btn-block" id="btn-generate">
+                        <i class="fas fa-play mr-1"></i> Generate Templates
+                    </button>
+                </div>
+            </div>
+
+            <!-- Generation Runs Card -->
+            <div class="card card-outline card-secondary">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-history mr-1"></i> Generation Runs</h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-refresh-runs" title="Refresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-hover mb-0" id="runs-table">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Status</th>
+                                <th>Requested</th>
+                                <th>Generated</th>
+                                <th>Date</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody id="runs-tbody">
+                            <tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ═══════════ RIGHT COLUMN — Template Pool ═══════════ -->
+        <div class="col-xl-7 col-lg-7 col-12">
+            <div class="card card-success card-outline">
+                <div class="card-header d-flex align-items-center">
+                    <h3 class="card-title"><i class="fas fa-layer-group mr-1"></i> Template Pool</h3>
+                    <div class="ml-auto d-flex align-items-center">
+                        <span class="badge badge-success px-3 mr-2" id="pool-count-badge">0 templates</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mr-1" id="btn-refresh-pool" title="Refresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="btn-clear-all" title="Delete all shared templates">
+                            <i class="fas fa-trash-alt mr-1"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0" id="pool-table">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Subject</th>
+                                <th>Preview Text</th>
+                                <th>Weight</th>
+                                <th>Created</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="pool-tbody">
+                            <tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-success"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div class="card-footer d-flex align-items-center justify-content-between" id="pool-footer">
+                    <small class="text-muted" id="pool-page-info"></small>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary mr-1" id="btn-prev-page" disabled>
+                            <i class="fas fa-chevron-left"></i> Prev
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" id="btn-next-page" disabled>
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /.row -->
+
+</div>
+</section>
+
+<!-- ═══════════ Template Preview Modal ═══════════ -->
+<div class="modal fade" id="preview-modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title"><i class="fas fa-eye mr-1"></i> Template Preview</h5>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="px-3 pt-3 pb-1 border-bottom bg-light">
+                    <strong>Subject:</strong> <span id="modal-subject" class="ml-1"></span>
+                    <span class="mx-3 text-muted">|</span>
+                    <strong>Preview:</strong> <span id="modal-preview" class="ml-1 text-muted"></span>
+                </div>
+                <div id="body-modal-content">
+                    <iframe id="preview-iframe" style="width:100%; height:600px; border:none;" sandbox="allow-same-origin"></iframe>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@@11/dist/sweetalert2.all.min.js"></script>
+<script>
+(function ($) {
+    'use strict';
+
+    var PAGE_SIZE    = 30;
+    var currentPage  = 1;
+    var totalTemplates = 0;
+    var isGenerating = false;
+    var pollTimer    = null;
+
+    // ── Helpers ─────────────────────────────────────────────────── //
+
+    function token() {
+        return $('input[name="__RequestVerificationToken"]').val();
+    }
+
+    function escHtml(s) {
+        if (!s) return '';
+        return $('<span>').text(s).html();
+    }
+
+    function fmt(d) {
+        if (!d) return '—';
+        var dt = new Date(d);
+        return dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function fmtShort(d) {
+        if (!d) return '—';
+        var dt = new Date(d);
+        return dt.toLocaleDateString();
+    }
+
+    function statusBadge(s) {
+        var map = {
+            'running':   ['badge-running',   'Running'],
+            'completed': ['badge-completed', 'Completed'],
+            'failed':    ['badge-failed',    'Failed'],
+            'cancelled': ['badge-cancelled', 'Cancelled'],
+            'pending':   ['badge-pending',   'Pending']
+        };
+        var e = map[(s || '').toLowerCase()] || ['badge-secondary', s];
+        return '<span class="badge ' + e[0] + ' px-2 py-1">' + escHtml(e[1]) + '</span>';
+    }
+
+    function showOverlay()  { $('#page-overlay').addClass('show'); }
+    function hideOverlay()  { $('#page-overlay').removeClass('show'); }
+
+    // ── Load Generation Runs ────────────────────────────────────── //
+
+    function loadRuns() {
+        $.get('@Url.Action("GetGlobalRuns", "BulkEmail")', function (data) {
+            var runs = (data && data.result) ? data.result : (Array.isArray(data) ? data : []);
+            var running = runs.filter(function(r){ return (r.status||'').toLowerCase() === 'running'; });
+            $('#stat-running').text(running.length);
+            $('#stat-total-runs').text(runs.length);
+
+            var latest = runs.length ? runs[0] : null;
+            $('#stat-last-gen').text(latest ? fmtShort(latest.creationTime) : '—');
+
+            var tbody = $('#runs-tbody');
+            tbody.empty();
+
+            if (!runs.length) {
+                tbody.html('<tr><td colspan="6" class="text-center text-muted py-3">No generation runs yet.</td></tr>');
+                return;
+            }
+
+            runs.forEach(function (r) {
+                var errTip = r.errorMessage
+                    ? '<span class="text-danger" title="' + escHtml(r.errorMessage) + '" style="cursor:help"><i class="fas fa-exclamation-circle"></i></span>'
+                    : '—';
+
+                var dur = '';
+                if (r.startedAt && r.completedAt) {
+                    var secs = Math.round((new Date(r.completedAt) - new Date(r.startedAt)) / 1000);
+                    dur = '<small class="text-muted"> ' + secs + 's</small>';
+                }
+
+                tbody.append('<tr>' +
+                    '<td>' + r.id + '</td>' +
+                    '<td>' + statusBadge(r.status) + dur + '</td>' +
+                    '<td>' + r.requestedVariants + '</td>' +
+                    '<td>' + r.generatedVariants + '</td>' +
+                    '<td><small>' + fmt(r.creationTime) + '</small></td>' +
+                    '<td>' + errTip + '</td>' +
+                '</tr>');
+            });
+
+            // If any run is still running, keep polling
+            if (running.length > 0 && !isGenerating) {
+                startPolling();
+            }
+        });
+    }
+
+    // ── Load Template Pool ──────────────────────────────────────── //
+
+    function loadPool(page) {
+        page = page || 1;
+        currentPage = page;
+
+        var url = '@Url.Action("GetSharedTemplates", "BulkEmail")' +
+                  '?pageNumber=' + page + '&pageSize=' + PAGE_SIZE;
+
+        $.get(url, function (data) {
+            var templates = (data && data.result) ? data.result : (Array.isArray(data) ? data : []);
+            var tbody = $('#pool-tbody');
+            tbody.empty();
+
+            if (!templates || templates.length === 0) {
+                tbody.html('<tr><td colspan="6" class="text-center text-muted py-4">' +
+                           '<i class="fas fa-inbox fa-2x mb-2 d-block text-muted"></i>' +
+                           'No templates in the pool yet. Generate some above!</td></tr>');
+                $('#stat-total').text('0');
+                $('#pool-count-badge').text('0 templates');
+                updatePagination(0, page);
+                return;
+            }
+
+            // Estimate total from current page
+            if (templates.length === PAGE_SIZE) {
+                totalTemplates = Math.max(totalTemplates, page * PAGE_SIZE + 1);
+            } else {
+                totalTemplates = (page - 1) * PAGE_SIZE + templates.length;
+            }
+
+            $('#stat-total').text(totalTemplates + (templates.length === PAGE_SIZE ? '+' : ''));
+            $('#pool-count-badge').text(totalTemplates + (templates.length === PAGE_SIZE ? '+' : '') + ' templates');
+
+            templates.forEach(function (t, idx) {
+                var rowNum = (page - 1) * PAGE_SIZE + idx + 1;
+                tbody.append(
+                    '<tr id="tpl-row-' + t.id + '">' +
+                    '<td>' + rowNum + '</td>' +
+                    '<td class="tpl-subject" title="' + escHtml(t.subject) + '">' + escHtml(t.subject) + '</td>' +
+                    '<td class="tpl-preview">' + escHtml(t.previewText || '—') + '</td>' +
+                    '<td>' + t.weight + '</td>' +
+                    '<td><small>' + fmtShort(t.creationTime || '') + '</small></td>' +
+                    '<td class="text-right">' +
+                        '<button class="btn btn-sm btn-outline-info mr-1 btn-preview" data-id="' + t.id + '" ' +
+                                'data-subject="' + escHtml(t.subject) + '" ' +
+                                'data-preview="' + escHtml(t.previewText || '') + '" ' +
+                                'data-body="' + escHtml(t.body) + '" ' +
+                                'title="Preview"><i class="fas fa-eye"></i></button>' +
+                        '<button class="btn btn-sm btn-outline-danger btn-del-tpl" data-id="' + t.id + '" title="Delete">' +
+                                '<i class="fas fa-trash"></i></button>' +
+                    '</td>' +
+                '</tr>'
+                );
+            });
+
+            updatePagination(templates.length, page);
+        });
+    }
+
+    function updatePagination(pageCount, page) {
+        var hasPrev = page > 1;
+        var hasNext = pageCount === PAGE_SIZE;
+        $('#btn-prev-page').prop('disabled', !hasPrev);
+        $('#btn-next-page').prop('disabled', !hasNext);
+        $('#pool-page-info').text('Page ' + page);
+    }
+
+    // ── Generate ────────────────────────────────────────────────── //
+
+    function startGenerating() {
+        var variantCount = parseInt($('#variant-count').val()) || 10;
+        var prompt       = $('#prompt-area').val().trim();
+        var tone         = $('#tone-input').val().trim();
+
+        isGenerating = true;
+        $('#gen-progress-wrap').show();
+        $('#btn-generate').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating…');
+
+        $.ajax({
+            url: '@Url.Action("GenerateGlobalTemplates", "BulkEmail")',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'RequestVerificationToken': token() },
+            data: JSON.stringify({
+                variantCount: variantCount,
+                prompt:       prompt || null,
+                tone:         tone   || null
+            }),
+            success: function (result) {
+                isGenerating = false;
+                stopPolling();
+                $('#gen-progress-wrap').hide();
+                $('#btn-generate').prop('disabled', false).html('<i class="fas fa-play mr-1"></i> Generate Templates');
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Generation Complete!',
+                    html: '<strong>' + result.generatedCount + '</strong> new templates added to the pool.',
+                    timer: 3000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                });
+
+                loadRuns();
+                loadPool(1);
+            },
+            error: function (xhr) {
+                isGenerating = false;
+                stopPolling();
+                $('#gen-progress-wrap').hide();
+                $('#btn-generate').prop('disabled', false).html('<i class="fas fa-play mr-1"></i> Generate Templates');
+
+                var msg = 'Generation failed.';
+                try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e) {}
+                Swal.fire({ icon: 'error', title: 'Generation Failed', text: msg });
+                loadRuns();
+            }
+        });
+
+        // Start polling runs while generation is in progress
+        startPolling();
+    }
+
+    function startPolling() {
+        if (pollTimer) return;
+        pollTimer = setInterval(function () {
+            loadRuns();
+            loadPool(currentPage);
+        }, 5000);
+    }
+
+    function stopPolling() {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    // ── Stop Generation ─────────────────────────────────────────── //
+
+    function stopGlobalGeneration() {
+        Swal.fire({
+            title: 'Stop Generation?',
+            text: 'This will cancel all currently running global generation jobs.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, stop it',
+            confirmButtonColor: '#dc3545'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            $.ajax({
+                url: '@Url.Action("StopGlobalGeneration", "BulkEmail")',
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token() },
+                success: function () {
+                    isGenerating = false;
+                    stopPolling();
+                    $('#gen-progress-wrap').hide();
+                    $('#btn-generate').prop('disabled', false).html('<i class="fas fa-play mr-1"></i> Generate Templates');
+                    Swal.fire({ icon: 'info', title: 'Stopped', text: 'Global generation cancelled.', timer: 2000, showConfirmButton: false });
+                    loadRuns();
+                },
+                error: function () {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to stop generation.' });
+                }
+            });
+        });
+    }
+
+    // ── Delete Template ─────────────────────────────────────────── //
+
+    function deleteTemplate(id) {
+        Swal.fire({
+            title: 'Delete Template?',
+            text: 'This will permanently remove the template from the shared pool.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Delete',
+            confirmButtonColor: '#dc3545'
+        }).then(function (res) {
+            if (!res.isConfirmed) return;
+
+            $.ajax({
+                url: '@Url.Action("DeleteSharedTemplate", "BulkEmail")',
+                method: 'POST',
+                contentType: 'application/json',
+                headers: { 'RequestVerificationToken': token() },
+                data: JSON.stringify({ id: id }),
+                success: function () {
+                    $('#tpl-row-' + id).fadeOut(300, function () {
+                        $(this).remove();
+                        totalTemplates = Math.max(0, totalTemplates - 1);
+                        $('#stat-total').text(totalTemplates);
+                        $('#pool-count-badge').text(totalTemplates + ' templates');
+                    });
+                },
+                error: function () {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to delete template.' });
+                }
+            });
+        });
+    }
+
+    // ── Clear All Templates ─────────────────────────────────────── //
+
+    function clearAllTemplates() {
+        var rows = $('#pool-tbody tr[id^="tpl-row-"]');
+        if (!rows.length) {
+            Swal.fire({ icon: 'info', title: 'Pool is empty', text: 'No templates to delete.', timer: 2000, showConfirmButton: false });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Clear Entire Pool?',
+            html: 'This will delete <strong>all ' + totalTemplates + ' templates</strong> from the shared pool. This cannot be undone.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, clear all',
+            confirmButtonColor: '#dc3545',
+            input: 'text',
+            inputPlaceholder: 'Type "clear" to confirm',
+            preConfirm: function (val) {
+                if (val !== 'clear') {
+                    Swal.showValidationMessage('Please type "clear" to confirm.');
+                    return false;
+                }
+                return true;
+            }
+        }).then(function (res) {
+            if (!res.isConfirmed) return;
+            showOverlay();
+
+            // Delete all templates on current page one by one, then reload
+            var ids = [];
+            rows.each(function () {
+                var id = this.id.replace('tpl-row-', '');
+                ids.push(parseInt(id));
+            });
+
+            var chain = $.Deferred().resolve();
+            ids.forEach(function (id) {
+                chain = chain.then(function () {
+                    return $.ajax({
+                        url: '@Url.Action("DeleteSharedTemplate", "BulkEmail")',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        headers: { 'RequestVerificationToken': token() },
+                        data: JSON.stringify({ id: id })
+                    });
+                });
+            });
+
+            chain.always(function () {
+                hideOverlay();
+                loadPool(1);
+                loadRuns();
+            });
+        });
+    }
+
+    // ── Preview Modal ────────────────────────────────────────────── //
+
+    function openPreview(subject, previewText, body) {
+        $('#modal-subject').text(subject || '—');
+        $('#modal-preview').text(previewText || '—');
+
+        var iframe = document.getElementById('preview-iframe');
+        var doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(body || '<p style="padding:20px;color:#999">No body content.</p>');
+        doc.close();
+
+        $('#preview-modal').modal('show');
+    }
+
+    // ── Event Bindings ────────────────────────────────────────────── //
+
+    $('#btn-generate').on('click', function () {
+        if (isGenerating) return;
+        startGenerating();
+    });
+
+    $('#btn-stop-global').on('click', stopGlobalGeneration);
+
+    $('#btn-refresh-runs').on('click', loadRuns);
+    $('#btn-refresh-pool').on('click', function () { loadPool(currentPage); });
+
+    $('#btn-prev-page').on('click', function () {
+        if (currentPage > 1) loadPool(currentPage - 1);
+    });
+    $('#btn-next-page').on('click', function () {
+        loadPool(currentPage + 1);
+    });
+
+    $('#btn-clear-all').on('click', clearAllTemplates);
+
+    // Delegated: delete template
+    $('#pool-tbody').on('click', '.btn-del-tpl', function () {
+        var id = parseInt($(this).data('id'));
+        deleteTemplate(id);
+    });
+
+    // Delegated: preview template
+    $('#pool-tbody').on('click', '.btn-preview', function () {
+        var subject  = $(this).data('subject');
+        var preview  = $(this).data('preview');
+        var body     = $(this).attr('data-body');
+        openPreview(subject, preview, body);
+    });
+
+    // ── Initial Load ─────────────────────────────────────────────── //
+
+    loadRuns();
+    loadPool(1);
+
+}(jQuery));
+</script>
+}

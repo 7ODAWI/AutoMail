@@ -47,6 +47,27 @@ namespace AutoMail.Web.Controllers
             return Json(result);
         }
 
+        [HttpGet]
+        public async Task<JsonResult> DetailOverview(long id)
+        {
+            var result = await _operationAppService.GetOperationOverviewAsync(id);
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> DetailTemplates(long id, int pageNumber = 1, int pageSize = 20)
+        {
+            var result = await _operationAppService.GetOperationTemplatesPagedAsync(id, pageNumber, pageSize);
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> DetailEmails(long id, int pageNumber = 1, int pageSize = 50)
+        {
+            var result = await _operationAppService.GetOperationEmailsPagedAsync(id, pageNumber, pageSize);
+            return Json(result);
+        }
+
         public async Task<ActionResult> DetailPage(long id)
         {
             ViewBag.OperationId = id;
@@ -116,6 +137,13 @@ namespace AutoMail.Web.Controllers
             return Json(new { message = "Operation started." });
         }
 
+        [HttpPost]
+        public async Task<JsonResult> DeleteOperation([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.DeleteOperationAsync(GetRequiredOperationId(input));
+            return Json(new { message = "Operation deleted." });
+        }
+
         private static long GetRequiredOperationId(OperationControlInput input)
         {
             if (input == null || input.Id <= 0)
@@ -156,6 +184,64 @@ namespace AutoMail.Web.Controllers
         {
             await _operationAppService.DeleteTemplateAsync(input.Id);
             return Json(new { message = "Template deleted." });
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> GenerateAiTemplates([FromBody] GenerateAiTemplatesInput input)
+        {
+            var result = await _operationAppService.GenerateAiTemplatesAsync(input);
+            return Json(result);
+        }
+
+        // ------------------------------------------------------------------ //
+        //  Shared Global Template Pool (standalone AI generation)
+        // ------------------------------------------------------------------ //
+
+        [HttpPost]
+        public async Task<JsonResult> GenerateGlobalTemplates([FromBody] GenerateGlobalAiTemplatesInput input)
+        {
+            var result = await _operationAppService.GenerateGlobalAiTemplatesAsync(input);
+            return Json(result);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetSharedTemplates(int pageNumber = 1, int pageSize = 50)
+        {
+            var templates = await _operationAppService.GetSharedTemplatesAsync(pageNumber, pageSize);
+            return Json(templates);
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> DeleteSharedTemplate([FromBody] DeleteTemplateInput input)
+        {
+            await _operationAppService.DeleteSharedTemplateAsync(input.Id);
+            return Json(new { message = "Shared template deleted." });
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetGlobalRuns()
+        {
+            var runs = await _operationAppService.GetGlobalGenerationRunsAsync();
+            return Json(runs);
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> StopGlobalGeneration()
+        {
+            await _operationAppService.StopGlobalAiGenerationAsync();
+            return Json(new { message = "Global AI generation stopped." });
+        }
+
+        public ActionResult TemplatePool()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> StopAiGeneration([FromBody] OperationControlInput input)
+        {
+            await _operationAppService.StopAiGenerationAsync(GetRequiredOperationId(input));
+            return Json(new { message = "AI generation stopped. You can start sending now." });
         }
     }
 

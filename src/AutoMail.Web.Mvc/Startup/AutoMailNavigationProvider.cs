@@ -60,7 +60,16 @@ public class AutoMailNavigationProvider : NavigationProvider
                     url: "BulkEmail",
                     icon: "fas fa-paper-plane",
                     requiresAuthentication: true
-                )            )
+                )
+            ).AddItem(
+                new MenuItemDefinition(
+                    PageNames.TemplatePool,
+                    new FixedLocalizableString("AI Template Pool"),
+                    url: "BulkEmail/TemplatePool",
+                    icon: "fas fa-robot",
+                    requiresAuthentication: true
+                )
+            )
             .AddItem( // Menu items below is just for demonstration!
                 new MenuItemDefinition(
                     "MultiLevelMenu",

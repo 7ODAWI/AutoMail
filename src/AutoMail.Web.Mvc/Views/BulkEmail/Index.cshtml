@@ -56,6 +56,9 @@
                 <a href="@Url.Action("Create", "BulkEmail")" class="btn btn-primary">
                     <i class="fas fa-plus mr-1"></i> New Operation
                 </a>
+                <a href="@Url.Action("templatepool", "BulkEmail")" class="btn btn-primary">
+                    <i class="fas fa-plus mr-1"></i> Template Pool
+                </a>
             </div>
         </div>
     </div>
@@ -178,6 +181,9 @@
                 html += '<a href="@Url.Action("EditPage", "BulkEmail")?id=' + id + '" class="btn btn-sm btn-outline-info mr-1" title="Edit Draft"><i class="fas fa-edit"></i></a>';
             }
             html += '<button class="btn btn-sm btn-outline-secondary mr-1 btn-clone" data-id="' + id + '" title="Clone"><i class="fas fa-copy"></i></button>';
+            if (st !== 'inprogress') {
+                html += '<button class="btn btn-sm btn-outline-danger mr-1 btn-delete-op" data-id="' + id + '" title="Delete"><i class="fas fa-trash"></i></button>';
+            }
             if (op.failedCount > 0 && (st === 'failed' || st === 'partiallysent')) {
                 html += '<a href="@Url.Action("DetailPage", "BulkEmail")?id=' + id +
                         '" class="btn btn-sm btn-outline-warning" title="View to retry"><i class="fas fa-redo"></i></a>';
@@ -375,6 +381,33 @@
                             var cloned = resp.result || resp;
                             Swal.fire({ icon: 'success', title: 'Cloned!', text: 'New draft #' + cloned.id + ' created.', timer: 2000, showConfirmButton: false });
                             setTimeout(loadOperations, 600);
+                        },
+                        error: function (xhr) {
+                            var msg = 'An error occurred.';
+                            try { var e = JSON.parse(xhr.responseText); msg = (e.error && e.error.message) ? e.error.message : msg; } catch (_) {}
+                            Swal.fire({ icon: 'error', title: 'Error', text: msg });
+                        }
+                    });
+                });
+            });
+
+            $(document).off('click', '.btn-delete-op').on('click', '.btn-delete-op', function () {
+                var id = $(this).data('id');
+                Swal.fire({
+                    title: 'Delete Operation?',
+                    html: 'This will permanently delete operation <strong>#' + id + '</strong> and all of its emails, templates, and AI generation data.',
+                    icon: 'warning', showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: '<i class="fas fa-trash"></i> Delete'
+                }).then(function (r) {
+                    if (!r.isConfirmed) return;
+                    $.ajax({
+                        url: '@Url.Action("DeleteOperation", "BulkEmail")', type: 'POST',
+                        contentType: 'application/json', data: JSON.stringify({ id: id }),
+                        headers: { 'RequestVerificationToken': getToken() },
+                        success: function () {
+                            Swal.fire({ icon: 'success', title: 'Deleted', timer: 1500, showConfirmButton: false });
+                            setTimeout(loadOperations, 300);
                         },
                         error: function (xhr) {
                             var msg = 'An error occurred.';

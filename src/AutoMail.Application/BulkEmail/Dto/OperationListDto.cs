@@ -1,4 +1,5 @@
 using System;
+using AutoMail.Project_Models;
 
 namespace AutoMail.BulkEmail.Dto
 {
@@ -15,5 +16,9 @@ namespace AutoMail.BulkEmail.Dto
         public DateTime? StartedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public string StopReason { get; set; }
+        public AiGenerationMode AiGenerationMode { get; set; }
+        public int AiVariantCount { get; set; }
+        public DateTime? AiLastGeneratedAt { get; set; }
+        public bool AiTemplatesGenerated { get; set; }
     }
 }

@@ -251,6 +251,103 @@ public sealed class OperationsController : Controller
         return File(ms, "text/csv", filename);
     }
 
+    // GET /operations/export-all
+    [HttpGet]
+    public async Task<IActionResult> ExportAll()
+    {
+        var ms = new MemoryStream();
+        await using (var writer = new StreamWriter(ms, leaveOpen: true))
+        await using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+        {
+            // write header with Email as first column
+            csv.WriteHeader<CsvExportAllRow>();
+            await csv.NextRecordAsync();
+
+            var results = _db.DeveloperResults
+                .OrderBy(r => r.Email)
+                .AsAsyncEnumerable();
+
+            await foreach (var r in results)
+            {
+                csv.WriteRecord(new CsvExportAllRow
+                {
+                    Email           = r.Email,
+                    Username        = r.Username,
+                    Name            = r.Name ?? string.Empty,
+                    EmailConfidence = r.EmailConfidence ?? string.Empty,
+                    Location        = r.Location ?? string.Empty,
+                    Website         = r.Website ?? string.Empty,
+                    Followers       = r.Followers,
+                    Repos           = r.Repos,
+                    ProfileUrl      = r.ProfileUrl ?? string.Empty,
+                    FoundAtUtc      = r.FoundAtUtc.ToString("o"),
+                    OperationName   = (await _db.Operations.FindAsync(r.OperationId))?.Name ?? string.Empty
+                });
+                await csv.NextRecordAsync();
+            }
+        }
+
+        ms.Position = 0;
+        var filename = $"emails_all_{DateTime.UtcNow:yyyyMMddHHmm}.csv";
+        return File(ms, "text/csv", filename);
+    }
+
+    // POST /operations/create-random
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateRandom(int count = 5)
+    {
+        if (count <= 0) count = 5;
+
+        // Ensure at least one seeded operation to pull keywords/locations from
+        if (!await _db.Operations.AnyAsync())
+            await SeedData.SeedAsync(_db);
+
+        var operations = await _manager.GetAllAsync();
+
+        // aggregate candidate keywords/locations
+        var kwSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var locSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var op in operations)
+        {
+            var kws = JsonSerializer.Deserialize<List<string>>(op.KeywordsJson) ?? new();
+            var locs = JsonSerializer.Deserialize<List<string>>(op.LocationsJson) ?? new();
+            foreach (var k in kws) if (!string.IsNullOrWhiteSpace(k)) kwSet.Add(k.Trim());
+            foreach (var l in locs) if (!string.IsNullOrWhiteSpace(l)) locSet.Add(l.Trim());
+        }
+
+        var kwsArr = kwSet.ToArray();
+        var locsArr = locSet.ToArray();
+        var rnd = new Random();
+
+        for (var i = 0; i < count; i++)
+        {
+            var name = $"Random Operation {DateTime.UtcNow:yyyyMMddHHmmss}_{i}";
+
+            var pickK = new List<string>();
+            var kwCount = Math.Min(kwsArr.Length, rnd.Next(1, Math.Min(4, kwsArr.Length + 1)));
+            for (var k = 0; k < kwCount; k++)
+            {
+                var choice = kwsArr[rnd.Next(kwsArr.Length)];
+                if (!pickK.Contains(choice)) pickK.Add(choice);
+            }
+
+            var pickL = new List<string>();
+            if (locsArr.Length > 0)
+            {
+                var locCount = Math.Min(locsArr.Length, rnd.Next(0, Math.Min(3, locsArr.Length + 1)));
+                for (var l = 0; l < locCount; l++)
+                {
+                    var choice = locsArr[rnd.Next(locsArr.Length)];
+                    if (!pickL.Contains(choice)) pickL.Add(choice);
+                }
+            }
+
+            await _manager.CreateAsync(name, pickK, pickL, 0, null);
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static OperationCardDto ToCard(ScrapingOperation o) => new()
@@ -284,5 +381,21 @@ public sealed class OperationsController : Controller
         public int Repos { get; set; }
         public string ProfileUrl { get; set; } = string.Empty;
         public string FoundAtUtc { get; set; } = string.Empty;
+    }
+
+    private sealed class CsvExportAllRow
+    {
+        // Email first
+        public string Email { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string EmailConfidence { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string Website { get; set; } = string.Empty;
+        public int Followers { get; set; }
+        public int Repos { get; set; }
+        public string ProfileUrl { get; set; } = string.Empty;
+        public string FoundAtUtc { get; set; } = string.Empty;
+        public string OperationName { get; set; } = string.Empty;
     }
 }

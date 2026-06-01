@@ -4,6 +4,7 @@ using AutoMail.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AutoMail.Migrations
 {
     [DbContext(typeof(AutoMailDbContext))]
-    partial class AutoMailDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260526062607_AddAiContentEngineFoundation")]
+    partial class AddAiContentEngineFoundation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1685,7 +1688,7 @@ namespace AutoMail.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<long?>("OperationId")
+                    b.Property<long>("OperationId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("OutlineJson")
@@ -1765,7 +1768,7 @@ namespace AutoMail.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<long?>("OperationId")
+                    b.Property<long>("OperationId")
                         .HasColumnType("bigint");
 
                     b.Property<int>("RequestedVariants")
@@ -1844,9 +1847,6 @@ namespace AutoMail.Migrations
                     b.Property<string>("AiPrompt")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
-
-                    b.Property<bool>("AiTemplatesGenerated")
-                        .HasColumnType("bit");
 
                     b.Property<string>("AiTone")
                         .HasMaxLength(128)
@@ -2006,7 +2006,7 @@ namespace AutoMail.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<long?>("OperationId")
+                    b.Property<long>("OperationId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("PreviewText")
@@ -2337,7 +2337,8 @@ namespace AutoMail.Migrations
                     b.HasOne("AutoMail.Project_Models.EmailOperation", null)
                         .WithMany()
                         .HasForeignKey("OperationId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AutoMail.Project_Models.AiGenerationRun", b =>
@@ -2345,7 +2346,8 @@ namespace AutoMail.Migrations
                     b.HasOne("AutoMail.Project_Models.EmailOperation", null)
                         .WithMany()
                         .HasForeignKey("OperationId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AutoMail.Project_Models.EmailTemplate", b =>
@@ -2363,7 +2365,8 @@ namespace AutoMail.Migrations
                     b.HasOne("AutoMail.Project_Models.EmailOperation", null)
                         .WithMany()
                         .HasForeignKey("OperationId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AutoMail.Project_Models.OperationEmail", b =>
