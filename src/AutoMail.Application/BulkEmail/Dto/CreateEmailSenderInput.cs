@@ -25,10 +25,10 @@ namespace AutoMail.BulkEmail.Dto
 
         public bool IsActive { get; set; } = true;
 
-        [Range(1, 10000)]
+        [Range(1, 3600000)]
         public int DailyLimit { get; set; } = 500;
 
-        [Range(0, 60000)]
+        [Range(0, 3600000)]
         public int DelayBetweenEmailsMs { get; set; } = 1000;
     }
 }
